@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="21754" systemVersion="22G120" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    
+    <!-- Wallet Entity -->
+    <entity name="WalletEntity" representedClassName="WalletEntity" syncable="YES">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" attributeType="String"/>
+        <attribute name="type" attributeType="String"/>
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="updatedAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isActive" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="derivationPath" optional="YES" attributeType="String"/>
+        <attribute name="network" attributeType="String" defaultValueString="mainnet"/>
+        <relationship name="addresses" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="AddressEntity" inverseName="wallet" inverseEntity="AddressEntity"/>
+        <relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TransactionEntity" inverseName="wallet" inverseEntity="TransactionEntity"/>
+    </entity>
+    
+    <!-- Address Entity -->
+    <entity name="AddressEntity" representedClassName="AddressEntity" syncable="YES">
+        <attribute name="address" attributeType="String"/>
+        <attribute name="derivationIndex" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="type" attributeType="String"/>
+        <attribute name="label" optional="YES" attributeType="String"/>
+        <attribute name="balance" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="unconfirmedBalance" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="isUsed" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="isChange" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="wallet" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="WalletEntity" inverseName="addresses" inverseEntity="WalletEntity"/>
+        <relationship name="utxos" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="UTXOEntity" inverseName="address" inverseEntity="UTXOEntity"/>
+    </entity>
+    
+    <!-- Transaction Entity -->
+    <entity name="TransactionEntity" representedClassName="TransactionEntity" syncable="YES">
+        <attribute name="txid" attributeType="String"/>
+        <attribute name="rawTx" optional="YES" attributeType="Binary"/>
+        <attribute name="amount" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="fee" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="confirmations" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="blockHeight" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="timestamp" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="type" attributeType="String"/>
+        <attribute name="status" attributeType="String"/>
+        <attribute name="memo" optional="YES" attributeType="String"/>
+        <attribute name="fromAddress" optional="YES" attributeType="String"/>
+        <attribute name="toAddress" optional="YES" attributeType="String"/>
+        <relationship name="wallet" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="WalletEntity" inverseName="transactions" inverseEntity="WalletEntity"/>
+        <relationship name="inputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TransactionInputEntity" inverseName="transaction" inverseEntity="TransactionInputEntity"/>
+        <relationship name="outputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TransactionOutputEntity" inverseName="transaction" inverseEntity="TransactionOutputEntity"/>
+    </entity>
+    
+    <!-- UTXO Entity -->
+    <entity name="UTXOEntity" representedClassName="UTXOEntity" syncable="YES">
+        <attribute name="txid" attributeType="String"/>
+        <attribute name="vout" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="amount" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="scriptPubKey" attributeType="Binary"/>
+        <attribute name="blockHeight" optional="YES" attributeType="Integer 32" usesScalarValueType="YES"/>
+        <attribute name="confirmations" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="isSpent" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="spentTxid" optional="YES" attributeType="String"/>
+        <relationship name="address" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="AddressEntity" inverseName="utxos" inverseEntity="AddressEntity"/>
+    </entity>
+    
+    <!-- Transaction Input Entity -->
+    <entity name="TransactionInputEntity" representedClassName="TransactionInputEntity" syncable="YES">
+        <attribute name="previousTxid" attributeType="String"/>
+        <attribute name="previousVout" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="scriptSig" optional="YES" attributeType="Binary"/>
+        <attribute name="witness" optional="YES" attributeType="Binary"/>
+        <attribute name="sequence" attributeType="Integer 32" defaultValueString="4294967295" usesScalarValueType="YES"/>
+        <attribute name="address" optional="YES" attributeType="String"/>
+        <attribute name="amount" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="transaction" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="TransactionEntity" inverseName="inputs" inverseEntity="TransactionEntity"/>
+    </entity>
+    
+    <!-- Transaction Output Entity -->
+    <entity name="TransactionOutputEntity" representedClassName="TransactionOutputEntity" syncable="YES">
+        <attribute name="index" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="amount" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="scriptPubKey" attributeType="Binary"/>
+        <attribute name="address" optional="YES" attributeType="String"/>
+        <attribute name="isSpent" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="spentBy" optional="YES" attributeType="String"/>
+        <relationship name="transaction" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="TransactionEntity" inverseName="outputs" inverseEntity="TransactionEntity"/>
+    </entity>
+    
+    <!-- Price Data Entity -->
+    <entity name="PriceDataEntity" representedClassName="PriceDataEntity" syncable="YES">
+        <attribute name="currency" attributeType="String"/>
+        <attribute name="price" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="change24h" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="changePercentage24h" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="volume24h" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="marketCap" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="timestamp" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="provider" attributeType="String"/>
+    </entity>
+    
+    <!-- Settings Entity -->
+    <entity name="SettingsEntity" representedClassName="SettingsEntity" syncable="YES">
+        <attribute name="key" attributeType="String"/>
+        <attribute name="value" attributeType="String"/>
+        <attribute name="type" attributeType="String"/>
+        <attribute name="updatedAt" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
+    
+</model>
