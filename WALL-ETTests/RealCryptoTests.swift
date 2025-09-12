@@ -195,27 +195,4 @@ class RealCryptoTests: XCTestCase {
     }
 }
 
-// Helper extension for tests
-extension Data {
-    init(hex: String) {
-        var hexString = hex
-        if hexString.hasPrefix("0x") {
-            hexString = String(hexString.dropFirst(2))
-        }
-        
-        var data = Data()
-        for i in stride(from: 0, to: hexString.count, by: 2) {
-            let startIndex = hexString.index(hexString.startIndex, offsetBy: i)
-            let endIndex = hexString.index(startIndex, offsetBy: 2)
-            let byteString = hexString[startIndex..<endIndex]
-            if let byte = UInt8(byteString, radix: 16) {
-                data.append(byte)
-            }
-        }
-        self = data
-    }
-    
-    var hexString: String {
-        return map { String(format: "%02x", $0) }.joined()
-    }
-}
+// Data hex helpers are defined in DataExtensionTests.swift for the test target

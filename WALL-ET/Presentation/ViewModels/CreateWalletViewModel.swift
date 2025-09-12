@@ -65,7 +65,21 @@ final class CreateWalletViewModel: ObservableObject {
                 return
             }
         } catch {
-            errorMessage = error.localizedDescription
+            // Provide a friendlier error for common cases
+            if let err = error as? MnemonicService.MnemonicError {
+                switch err {
+                case .invalidWordCount:
+                    errorMessage = "Phrase must be 12, 15, 18, 21, or 24 words"
+                case .invalidWord(let w):
+                    errorMessage = "Unknown word: \(w)"
+                case .invalidChecksum:
+                    errorMessage = "Checksum is invalid. Please check the words order."
+                default:
+                    errorMessage = err.localizedDescription
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
             return
         }
         

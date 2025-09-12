@@ -7,7 +7,8 @@ class MnemonicService {
     
     // MARK: - Properties
     static let shared = MnemonicService()
-    private let wordList: [String]
+    // Internal for tests via @testable import
+    let wordList: [String]
     
     // MARK: - Enums
     enum MnemonicStrength: Int {
@@ -83,47 +84,41 @@ class MnemonicService {
     
     func mnemonicFromEntropy(_ entropy: Data) throws -> String {
         let entropyBits = entropy.count * 8
-        
         // Validate entropy length
         guard [128, 160, 192, 224, 256].contains(entropyBits) else {
             throw MnemonicError.invalidEntropy
         }
-        
-        // Calculate checksum
-        let checksumBits = entropyBits / 32
+        // a = entropy as binary string
+        let a = entropy.map { String($0, radix: 2).padLeft(toLength: 8, withPad: "0") }.joined()
+        // c = sha256(entropy) as 256-bit binary string
         let hash = SHA256.hash(data: entropy)
-        let checksumByte = hash.first(where: { _ in true }) ?? 0
-        let checksum = checksumByte >> (8 - checksumBits)
-        
-        // Combine entropy and checksum
-        var combined = entropy
-        combined.append(checksum)
-        
-        // Convert to binary string
-        let binaryString = combined.map { byte in
-            String(byte, radix: 2).padLeft(toLength: 8, withPad: "0")
-        }.joined()
-        
-        // Split into 11-bit chunks and convert to words
-        let totalBits = entropyBits + checksumBits
+        let c = hash.data.map { String($0, radix: 2).padLeft(toLength: 8, withPad: "0") }.joined()
+        // d = first entropyBits/32 bits of c
+        let checksumBits = entropyBits / 32
+        let dEnd = c.index(c.startIndex, offsetBy: checksumBits)
+        let d = String(c[..<dEnd])
+        // b = a + d
+        let b = a + d
+        // Split b into 11-bit groups to map into words
         var words: [String] = []
-        
-        for i in stride(from: 0, to: totalBits, by: 11) {
-            let startIndex = binaryString.index(binaryString.startIndex, offsetBy: i)
-            let endIndex = binaryString.index(startIndex, offsetBy: 11)
-            let chunk = String(binaryString[startIndex..<endIndex])
-            
-            if let index = Int(chunk, radix: 2) {
-                words.append(wordList[index])
-            }
+        let groups = b.count / 11
+        var cursor = b.startIndex
+        for _ in 0..<groups {
+            let next = b.index(cursor, offsetBy: 11)
+            let chunk = String(b[cursor..<next])
+            if let idx = Int(chunk, radix: 2) { words.append(wordList[idx]) }
+            cursor = next
         }
-        
         return words.joined(separator: " ")
     }
     
     // MARK: - Mnemonic Validation
     func validateMnemonic(_ mnemonic: String) throws -> Bool {
-        let words = mnemonic.lowercased().split(separator: " ").map(String.init)
+        // Normalize to NFKD and collapse whitespace (per BIP39 reference)
+        let normalized = mnemonic
+            .decomposedStringWithCompatibilityMapping
+            .lowercased()
+        let words = normalized.split(whereSeparator: { $0.isWhitespace }).map(String.init)
         
         // Check word count
         guard [12, 15, 18, 21, 24].contains(words.count) else {
@@ -144,12 +139,10 @@ class MnemonicService {
             String(index, radix: 2).padLeft(toLength: 11, withPad: "0")
         }.joined()
         
-        // Split entropy and checksum
+        // Split entropy and checksum per reference implementation
         let totalBits = words.count * 11
         let checksumBits = totalBits / 33
-        let entropyBits = totalBits - checksumBits
-        
-        let entropyBinary = String(binaryString.prefix(entropyBits))
+        let entropyBinary = String(binaryString.prefix(totalBits - checksumBits))
         let checksumBinary = String(binaryString.suffix(checksumBits))
         
         // Convert entropy to data
@@ -164,9 +157,9 @@ class MnemonicService {
         }
         
         // Calculate expected checksum
-        let hash = SHA256.hash(data: entropyData)
-        let expectedChecksumByte = hash.first(where: { _ in true }) ?? 0
-        let expectedChecksum = expectedChecksumByte >> (8 - checksumBits)
+        let hash = SHA256.hash(data: entropyData).data
+        let expectedChecksumByte: UInt8 = hash.first ?? 0
+        let expectedChecksum = Int(expectedChecksumByte) >> (8 - checksumBits)
         let expectedChecksumBinary = String(expectedChecksum, radix: 2).padLeft(toLength: checksumBits, withPad: "0")
         
         // Verify checksum
@@ -179,8 +172,16 @@ class MnemonicService {
     
     // MARK: - Seed Generation (BIP39)
     func mnemonicToSeed(_ mnemonic: String, passphrase: String = "") -> Data {
-        let salt = "mnemonic" + passphrase
-        return pbkdf2(password: mnemonic, salt: salt, iterations: 2048, keyLength: 64)
+        // Per BIP39: NFKD normalize both mnemonic and passphrase, and collapse spaces
+        let normMnemonic = mnemonic
+            .decomposedStringWithCompatibilityMapping
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let normPassphrase = passphrase
+            .decomposedStringWithCompatibilityMapping
+        let salt = "mnemonic" + normPassphrase
+        return pbkdf2(password: normMnemonic, salt: salt, iterations: 2048, keyLength: 64)
     }
     
     // MARK: - HD Key Derivation (BIP32)
@@ -277,7 +278,8 @@ class MnemonicService {
         
         for component in components {
             let isHardened = component.hasSuffix("'")
-            let index = UInt32(isHardened ? component.dropLast() : component) ?? 0
+            let indexString = String(isHardened ? component.dropLast() : component)
+            let index = UInt32(indexString) ?? 0
             currentKey = deriveKey(from: currentKey, at: index, hardened: isHardened)
         }
         
@@ -477,7 +479,7 @@ arrest
 arrive
 arrow
 art
-artefact
+artifact
 artist
 artwork
 ask

@@ -101,4 +101,13 @@ class MnemonicServiceTests: XCTestCase {
         let expectedMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
         XCTAssertEqual(mnemonic, expectedMnemonic)
     }
+
+    func testKnownMnemonicFirstAddress() {
+        // Provided vector (mainnet): first m/84'/0'/0'/0/0 address
+        let mnemonic = "twist outside favorite taxi bracket admit unveil around demand number mixture civil diesel enhance hammer meat then replace master carpet farm viable toast muscle"
+        let seed = sut.mnemonicToSeed(mnemonic)
+        let (_, address) = sut.deriveAddress(from: seed, path: "m/84'/0'/0'/0/0", network: .mainnet)
+        print("Derived address:", address)
+        XCTAssertEqual(address, "bc1q249u4yzmkas7jk7cne0kqwr8ky8097ttxlmlrz")
+    }
 }
