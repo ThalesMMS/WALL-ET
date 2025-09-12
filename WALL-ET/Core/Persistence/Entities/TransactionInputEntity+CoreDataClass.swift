@@ -6,6 +6,6 @@ public class TransactionInputEntity: NSManagedObject {
     
     convenience init(context: NSManagedObjectContext) {
         self.init(entity: TransactionInputEntity.entity(), insertInto: context)
-        self.sequence = 0xFFFFFFFF
+        self.sequence = Int32(bitPattern: 0xFFFFFFFE) // RBF enabled sequence
     }
 }

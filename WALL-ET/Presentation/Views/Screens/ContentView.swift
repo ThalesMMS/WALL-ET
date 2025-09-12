@@ -23,30 +23,20 @@ struct ContentView: View {
                 }
                 .tag(2)
         }
-        .sheet(isPresented: $coordinator.isShowingModal) {
-            modalContent
-        }
+        // TODO: Add modal support
+        // .sheet(isPresented: $coordinator.isShowingModal) {
+        //     modalContent
+        // }
     }
     
-    @ViewBuilder
-    private var modalContent: some View {
-        switch coordinator.modalRoute {
-        case .createWallet, .importWallet:
-            CreateWalletView()
-                .environmentObject(coordinator)
-        case .send(let wallet):
-            SendView(wallet: wallet)
-                .environmentObject(coordinator)
-        case .receive(let wallet):
-            ReceiveView(wallet: wallet)
-                .environmentObject(coordinator)
-        default:
-            EmptyView()
-        }
-    }
+    // TODO: Add modal content support
+    // @ViewBuilder
+    // private var modalContent: some View {
+    //     EmptyView()
+    // }
 }
 
-struct TransactionsView: View {
+struct PlaceholderTransactionsView: View {
     var body: some View {
         NavigationView {
             VStack {
@@ -66,7 +56,7 @@ struct TransactionsView: View {
     }
 }
 
-struct SettingsView: View {
+struct PlaceholderSettingsView: View {
     var body: some View {
         NavigationView {
             List {
@@ -107,7 +97,7 @@ struct SettingsView: View {
     }
 }
 
-struct SendView: View {
+struct PlaceholderSendView: View {
     let wallet: Wallet
     @Environment(\.dismiss) var dismiss
     
@@ -141,7 +131,7 @@ struct SendView: View {
     }
 }
 
-struct ReceiveView: View {
+struct PlaceholderReceiveView: View {
     let wallet: Wallet
     @Environment(\.dismiss) var dismiss
     

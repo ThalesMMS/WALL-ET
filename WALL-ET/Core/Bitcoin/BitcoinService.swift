@@ -73,17 +73,11 @@ class BitcoinService {
     
     // MARK: - Key Generation
     func generatePrivateKey() -> Data {
-        var privateKey = Data(count: 32)
-        _ = privateKey.withUnsafeMutableBytes { bytes in
-            SecRandomCopyBytes(kSecRandomDefault, 32, bytes.baseAddress!)
-        }
-        return privateKey
+        return CryptoService.shared.generatePrivateKey()
     }
     
     func derivePublicKey(from privateKey: Data, compressed: Bool = true) -> Data {
-        // Simplified - in production use secp256k1 library
-        let publicKey = Secp256k1.derivePublicKey(from: privateKey, compressed: compressed)
-        return publicKey
+        return CryptoService.shared.derivePublicKey(from: privateKey, compressed: compressed) ?? Data()
     }
     
     // MARK: - Address Generation
@@ -111,9 +105,9 @@ class BitcoinService {
     
     private func generateP2SH(from publicKey: Data) -> String {
         // Create P2WPKH script
-        let hash160 = hash160(publicKey)
+        let pubKeyHash = hash160(publicKey)
         var redeemScript = Data([0x00, 0x14]) // OP_0 + push 20 bytes
-        redeemScript.append(hash160)
+        redeemScript.append(pubKeyHash)
         
         // Hash the redeem script
         let scriptHash = hash160(redeemScript)
@@ -123,8 +117,8 @@ class BitcoinService {
     }
     
     private func generateP2WPKH(from publicKey: Data) -> String {
-        let hash160 = hash160(publicKey)
-        return Bech32.encode(hrp: network.bech32HRP, version: 0, program: hash160)
+        let pubKeyHash = hash160(publicKey)
+        return Bech32.encode(hrp: network.bech32HRP, version: 0, program: pubKeyHash)
     }
     
     private func generateP2WSH(from script: Data) -> String {
@@ -220,12 +214,11 @@ class BitcoinService {
     
     // MARK: - Helper Functions
     private func hash160(_ data: Data) -> Data {
-        let sha256Hash = sha256(data)
-        return ripemd160(sha256Hash)
+        return CryptoService.shared.hash160(data)
     }
     
     private func sha256(_ data: Data) -> Data {
-        return SHA256.hash(data: data).data
+        return CryptoService.shared.sha256(data)
     }
     
     private func ripemd160(_ data: Data) -> Data {
@@ -242,71 +235,78 @@ struct Base58 {
     private static let alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     
     static func encode(_ data: Data) -> String {
-        // Add checksum
-        let checksum = SHA256.hash(data: SHA256.hash(data: data)).data.prefix(4)
-        var dataWithChecksum = data
-        dataWithChecksum.append(checksum)
-        
-        // Convert to big integer and encode
-        var result = ""
-        var num = BigInt(dataWithChecksum)
-        let base = BigInt(58)
-        
-        while num > 0 {
-            let (quotient, remainder) = num.quotientAndRemainder(dividingBy: base)
-            result = String(alphabet[alphabet.index(alphabet.startIndex, offsetBy: Int(remainder))]) + result
-            num = quotient
-        }
-        
-        // Add leading 1s for leading zeros
-        for byte in dataWithChecksum {
-            if byte == 0 {
-                result = "1" + result
-            } else {
-                break
+        // Add checksum per Base58Check
+        var payload = Data(data)
+        let checksum = Data(SHA256.hash(data: Data(SHA256.hash(data: payload)))).prefix(4)
+        payload.append(checksum)
+
+        // Count leading zero bytes
+        let zeroCount = payload.prefix(while: { $0 == 0 }).count
+
+        // Convert to Base58
+        var bytes = [UInt8](payload)
+        var encoded = ""
+        while !bytes.isEmpty && bytes.contains(where: { $0 != 0 }) {
+            var remainder = 0
+            var newBytes: [UInt8] = []
+            newBytes.reserveCapacity(bytes.count)
+            for b in bytes {
+                let acc = Int(b) + remainder * 256
+                let q = acc / 58
+                let r = acc % 58
+                if !(newBytes.isEmpty && q == 0) {
+                    newBytes.append(UInt8(q))
+                }
+                remainder = r
             }
+            let char = alphabet[alphabet.index(alphabet.startIndex, offsetBy: remainder)]
+            encoded.insert(char, at: encoded.startIndex)
+            bytes = newBytes
         }
-        
-        return result
+
+        // Add '1' for each leading zero byte
+        for _ in 0..<zeroCount { encoded.insert("1", at: encoded.startIndex) }
+        return encoded
     }
     
     static func decode(_ string: String) -> Data? {
-        // Decode from base58
-        var num = BigInt(0)
-        let base = BigInt(58)
-        
-        for char in string {
-            guard let index = alphabet.firstIndex(of: char) else { return nil }
-            num = num * base + BigInt(alphabet.distance(from: alphabet.startIndex, to: index))
-        }
-        
-        // Convert to bytes
-        var bytes = [UInt8]()
-        while num > 0 {
-            let (quotient, remainder) = num.quotientAndRemainder(dividingBy: BigInt(256))
-            bytes.insert(UInt8(remainder), at: 0)
-            num = quotient
-        }
-        
-        // Add leading zeros
-        for char in string {
-            if char == "1" {
-                bytes.insert(0, at: 0)
-            } else {
-                break
+        // Build index map
+        var indexMap: [Character: Int] = [:]
+        indexMap.reserveCapacity(alphabet.count)
+        for (i, c) in alphabet.enumerated() { indexMap[c] = i }
+
+        // Count leading '1's (zero bytes)
+        let zeroCount = string.prefix(while: { $0 == "1" }).count
+
+        // Convert Base58 to base256
+        var b256 = [UInt8](repeating: 0, count: max(1, string.count * 733 / 1000 + 1))
+        var length = 0
+        for char in string where char != " " {
+            guard let carry = indexMap[char] else { return nil }
+            var carryVal = carry
+            var i = 0
+            for j in stride(from: b256.count - 1, through: 0, by: -1) {
+                if i >= length && carryVal == 0 { break }
+                let val = Int(b256[j]) * 58 + carryVal
+                b256[j] = UInt8(val & 0xff)
+                carryVal = val >> 8
+                i += 1
             }
+            length = i
         }
-        
-        guard bytes.count >= 4 else { return nil }
-        
+
+        // Skip leading zeros in b256
+        var it = b256.drop(while: { $0 == 0 })
+        var data = Data(repeating: 0, count: zeroCount)
+        data.append(contentsOf: it)
+
         // Verify checksum
-        let data = Data(bytes.dropLast(4))
-        let checksum = Data(bytes.suffix(4))
-        let calculatedChecksum = SHA256.hash(data: SHA256.hash(data: data)).data.prefix(4)
-        
-        guard checksum == calculatedChecksum else { return nil }
-        
-        return data
+        guard data.count >= 4 else { return nil }
+        let payload = data.dropLast(4)
+        let checksum = data.suffix(4)
+        let calculated = Data(SHA256.hash(data: Data(SHA256.hash(data: payload)))).prefix(4)
+        guard checksum == calculated else { return nil }
+        return Data(payload)
     }
 }
 
@@ -316,7 +316,7 @@ struct Bech32 {
     
     static func encode(hrp: String, version: Int, program: Data) -> String {
         var data = [UInt8]([UInt8(version)])
-        data.append(contentsOf: convertBits(from: program, fromBits: 8, toBits: 5, pad: true))
+        data.append(contentsOf: convertBits(from: program, fromBits: 8, toBits: 5, pad: true) ?? Data())
         
         let checksum = createChecksum(hrp: hrp, data: data)
         data.append(contentsOf: checksum)
@@ -425,26 +425,7 @@ struct Bech32 {
     }
 }
 
-// MARK: - Simplified Secp256k1 (Replace with actual library in production)
-struct Secp256k1 {
-    static func derivePublicKey(from privateKey: Data, compressed: Bool) -> Data {
-        // This is a placeholder - use actual secp256k1 library
-        // For now, return mock data
-        var publicKey = Data(repeating: 0x02, count: 1)
-        publicKey.append(SHA256.hash(data: privateKey).data)
-        return compressed ? publicKey : Data(repeating: 0x04, count: 65)
-    }
-    
-    static func sign(message: Data, with privateKey: Data) -> Data {
-        // Placeholder for ECDSA signature
-        return SHA256.hash(data: message + privateKey).data
-    }
-    
-    static func verify(signature: Data, message: Data, publicKey: Data) -> Bool {
-        // Placeholder for signature verification
-        return true
-    }
-}
+// Real secp256k1 cryptography is now implemented in CryptoService
 
 // MARK: - BigInt (Simplified implementation)
 struct BigInt {

@@ -57,6 +57,17 @@ final class CreateWalletViewModel: ObservableObject {
             errorMessage = "Please enter a recovery phrase"
             return
         }
+        // Validate mnemonic using BIP39 word list and checksum
+        do {
+            let valid = try MnemonicService.shared.validateMnemonic(mnemonic)
+            if !valid {
+                errorMessage = "Invalid recovery phrase"
+                return
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
         
         isCreating = true
         errorMessage = nil

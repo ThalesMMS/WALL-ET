@@ -30,9 +30,9 @@ class TransactionBuilder {
         outputs: [(address: String, amount: Int64)],
         changeAddress: String,
         feeRate: Int // satoshis per vByte
-    ) throws -> Transaction {
+    ) throws -> BitcoinTransaction {
         
-        var transaction = Transaction()
+        var transaction = BitcoinTransaction()
         
         // Add inputs
         for utxo in inputs {
@@ -89,7 +89,7 @@ class TransactionBuilder {
     
     // MARK: - Transaction Signing
     func signTransaction(
-        _ transaction: inout Transaction,
+        _ transaction: inout BitcoinTransaction,
         with privateKeys: [Data],
         utxos: [UTXO]
     ) throws {
@@ -139,7 +139,7 @@ class TransactionBuilder {
     }
     
     private func signP2PKHInput(
-        _ transaction: inout Transaction,
+        _ transaction: inout BitcoinTransaction,
         inputIndex: Int,
         privateKey: Data,
         prevScriptPubKey: Data
@@ -154,7 +154,9 @@ class TransactionBuilder {
         )
         
         // Sign
-        let signature = Secp256k1.sign(message: sigHash, with: privateKey)
+        guard let signature = CryptoService.shared.signTransactionHash(sigHash, with: privateKey) else {
+            throw TransactionError.signingFailed
+        }
         var signatureWithSighash = signature
         signatureWithSighash.append(Constants.sighashAll)
         
@@ -166,7 +168,7 @@ class TransactionBuilder {
     }
     
     private func signP2WPKHInput(
-        _ transaction: inout Transaction,
+        _ transaction: inout BitcoinTransaction,
         inputIndex: Int,
         privateKey: Data,
         prevValue: Int64,
@@ -183,7 +185,9 @@ class TransactionBuilder {
         )
         
         // Sign
-        let signature = Secp256k1.sign(message: sigHash, with: privateKey)
+        guard let signature = CryptoService.shared.signTransactionHash(sigHash, with: privateKey) else {
+            throw TransactionError.signingFailed
+        }
         var signatureWithSighash = signature
         signatureWithSighash.append(Constants.sighashAll)
         
@@ -193,7 +197,7 @@ class TransactionBuilder {
     }
     
     private func signP2SHP2WPKHInput(
-        _ transaction: inout Transaction,
+        _ transaction: inout BitcoinTransaction,
         inputIndex: Int,
         privateKey: Data,
         prevValue: Int64
@@ -218,7 +222,9 @@ class TransactionBuilder {
             sighashType: Constants.sighashAll
         )
         
-        let signature = Secp256k1.sign(message: sigHash, with: privateKey)
+        guard let signature = CryptoService.shared.signTransactionHash(sigHash, with: privateKey) else {
+            throw TransactionError.signingFailed
+        }
         var signatureWithSighash = signature
         signatureWithSighash.append(Constants.sighashAll)
         
@@ -322,7 +328,7 @@ class TransactionBuilder {
     
     // MARK: - Signature Hash Creation
     private func createSignatureHash(
-        transaction: Transaction,
+        transaction: BitcoinTransaction,
         inputIndex: Int,
         scriptCode: Data,
         sighashType: UInt8
@@ -366,7 +372,7 @@ class TransactionBuilder {
     }
     
     private func createSegwitSignatureHash(
-        transaction: Transaction,
+        transaction: BitcoinTransaction,
         inputIndex: Int,
         scriptCode: Data,
         value: Int64,
@@ -503,7 +509,7 @@ class TransactionBuilder {
         return SHA256.hash(data: data).data
     }
     
-    private func hashPrevouts(transaction: Transaction) -> Data {
+    private func hashPrevouts(transaction: BitcoinTransaction) -> Data {
         var data = Data()
         for input in transaction.inputs {
             data.append(input.previousOutput.serialize())
@@ -511,7 +517,7 @@ class TransactionBuilder {
         return sha256(sha256(data))
     }
     
-    private func hashSequences(transaction: Transaction) -> Data {
+    private func hashSequences(transaction: BitcoinTransaction) -> Data {
         var data = Data()
         for input in transaction.inputs {
             data.append(input.sequence.littleEndianData)
@@ -519,7 +525,7 @@ class TransactionBuilder {
         return sha256(sha256(data))
     }
     
-    private func hashOutputs(transaction: Transaction) -> Data {
+    private func hashOutputs(transaction: BitcoinTransaction) -> Data {
         var data = Data()
         for output in transaction.outputs {
             data.append(output.serialize())
@@ -529,7 +535,7 @@ class TransactionBuilder {
 }
 
 // MARK: - Transaction Structure
-struct Transaction {
+struct BitcoinTransaction {
     var version: Int32 = 2
     var inputs: [TransactionInput] = []
     var outputs: [TransactionOutput] = []
@@ -581,7 +587,7 @@ struct Transaction {
     var txid: String {
         let serialized = serialize()
         let hash = sha256(sha256(serialized))
-        return hash.reversed().hexString
+        return Data(hash.reversed()).hexString
     }
 }
 

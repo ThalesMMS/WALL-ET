@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WALL-ET is a native iOS Bitcoin wallet application written in Swift, using SwiftUI for UI and following MVVM-C architecture with Clean Architecture principles. The app manages Bitcoin wallets with features like multi-account support, transaction management, and security features including biometric authentication.
+WALL-ET is a native iOS Bitcoin wallet written in Swift/SwiftUI, following MVVM‑C with Clean Architecture. It supports BIP39/BIP32 derivation (BIP84), Electrum networking for balances/history/broadcast, and testnet/mainnet wallets.
 
 ## Build Commands
 
@@ -47,8 +47,12 @@ The codebase follows Clean Architecture with clear separation of concerns:
 
 ## Important Implementation Notes
 
-- The app uses two conflicting entry points: `WALL_ETApp.swift` (with SwiftData) and `App/AppMain.swift` (with proper architecture). Use `AppMain.swift` as the primary entry point.
-- Extensions in `Core/Extensions/` provide Bitcoin-specific conversions (satoshis to BTC).
-- Security features include Face ID/Touch ID support and a "duress mode" for protection.
-- The app supports both mainnet Bitcoin and testnet.
-- All amounts are stored as satoshis (Int64) and converted for display.
+- Entry point: `App/AppMain.swift` injects `AppCoordinator` as an environment object.
+- Bitcoin:
+  - BIP39 seed → BIP32 (HMAC‑SHA512) → BIP84 path m/84'/coin'/account'/change/address
+  - libsecp256k1 used for signing and CKDpriv (tweak addition)
+  - RIPEMD-160 implemented in Swift for hash160
+- Electrum: NWConnection JSON‑RPC client used for scripthash balance/history and broadcasting.
+- Network selection: Add Wallet lets you choose mainnet/testnet. Use matching Electrum server in Network Settings.
+- QR: CodeScanner integrated; BBQR multi‑part progress supported.
+- Amounts stored as satoshis (Int64); conversions via extensions/utilities.

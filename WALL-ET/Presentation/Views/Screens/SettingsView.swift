@@ -18,7 +18,7 @@ struct SettingsView: View {
                         Label("Manage Wallets", systemImage: "wallet.pass")
                     }
                     
-                    NavigationLink(destination: CreateWalletOptionsView()) {
+                    NavigationLink(destination: CreateWalletView()) {
                         Label("Create New Wallet", systemImage: "plus.circle")
                     }
                     
@@ -164,30 +164,119 @@ struct SettingsView: View {
     }
 }
 
-// Placeholder Views for Navigation Destinations
+// Real Wallet Management (Core Data via repository)
 struct WalletManagementView: View {
+    @State private var wallets: [Wallet] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var activeId: UUID?
+    
     var body: some View {
-        List {
-            WalletRowView(name: "Main Wallet", balance: 1.23456789, isMainnet: true)
-            WalletRowView(name: "Savings", balance: 0.48024689, isMainnet: true)
-            WalletRowView(name: "Test Wallet", balance: 10.5, isMainnet: false)
+        Group {
+            if isLoading {
+                ProgressView("Loading wallets…")
+            } else if wallets.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "bitcoinsign.circle")
+                        .font(.system(size: 56))
+                        .foregroundColor(.orange)
+                    Text("No Wallets Found").font(.headline)
+                    Text("Create or import a wallet from Settings.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 12) {
+                        NavigationLink(destination: CreateWalletView()) {
+                            Text("Create Wallet").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        NavigationLink(destination: ImportWalletView()) {
+                            Text("Import Wallet").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(wallets, id: \.id) { wallet in
+                        NavigationLink(destination: WalletDetailView(walletId: wallet.id.uuidString)) {
+                            WalletListRow(wallet: wallet, isActive: wallet.id == activeId)
+                        }
+                        .task { await DefaultWalletRepository(keychainService: KeychainService()).ensureGapLimit(for: wallet.id) }
+                        .swipeActions(edge: .trailing) {
+                            Button("Set Active") { setActive(wallet.id) }
+                                .tint(.orange)
+                        }
+                    }
+                    .onDelete(perform: deleteWallets)
+                }
+        }
         }
         .navigationTitle("Manage Wallets")
+        .onAppear(perform: loadWallets)
+        .alert("Error", isPresented: .constant(errorMessage != nil)) {
+            Button("OK") { errorMessage = nil }
+        } message: { Text(errorMessage ?? "") }
+    }
+    
+    private func loadWallets() {
+        isLoading = true
+        Task {
+            if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+                let list = (try? await repo.getAllWallets()) ?? []
+                await MainActor.run {
+                    self.wallets = list
+                    self.isLoading = false
+                }
+                // Determine active wallet id
+                let active = DefaultWalletRepository(keychainService: KeychainService()).getActiveWallet()
+                await MainActor.run { self.activeId = active?.id }
+            } else {
+                await MainActor.run {
+                    self.errorMessage = "Repository unavailable"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func deleteWallets(at offsets: IndexSet) {
+        let ids = offsets.map { wallets[$0].id }
+        Task {
+            if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+                for id in ids { try? await repo.deleteWallet(by: id) }
+                await MainActor.run {
+                    wallets.remove(atOffsets: offsets)
+                }
+            }
+        }
+    }
+
+    private func setActive(_ id: UUID) {
+        Task {
+            await WalletService().setActiveWallet(id)
+            await MainActor.run { self.activeId = id }
+        }
     }
 }
 
-struct WalletRowView: View {
-    let name: String
-    let balance: Double
-    let isMainnet: Bool
+struct WalletListRow: View {
+    let wallet: Wallet
+    var isActive: Bool = false
+    
+    private var isTestnet: Bool { wallet.type == .testnet }
+    private var btcBalance: Double {
+        wallet.accounts.reduce(0) { $0 + $1.balance.btcValue }
+    }
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
-                HStack {
-                    Text(name)
-                        .font(.headline)
-                    if !isMainnet {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(wallet.name).font(.headline)
+                    if isTestnet {
                         Text("TESTNET")
                             .font(.caption2)
                             .padding(.horizontal, 6)
@@ -197,16 +286,21 @@ struct WalletRowView: View {
                             .cornerRadius(4)
                     }
                 }
-                Text("\(balance, specifier: "%.8f") BTC")
+                Text("\(btcBalance, specifier: "%.8f") BTC")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             Spacer()
+            if isActive {
+                Label("Active", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.iconOnly)
+                    .foregroundColor(.green)
+            }
             Image(systemName: "chevron.right")
                 .foregroundColor(.secondary)
                 .font(.caption)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 }
 
@@ -252,6 +346,11 @@ struct CreateWalletOptionsView: View {
 
 struct ImportWalletView: View {
     @State private var seedPhrase = ""
+    @State private var walletName = "Imported Wallet"
+    @AppStorage("network_type") private var networkType = "mainnet"
+    @State private var errorMessage: String?
+    @State private var isImporting = false
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         Form {
@@ -263,15 +362,50 @@ struct ImportWalletView: View {
             } footer: {
                 Text("Enter your 12 or 24 word seed phrase separated by spaces.")
             }
+            Section {
+                TextField("Wallet Name", text: $walletName)
+            }
+            Section {
+                Picker("Network", selection: $networkType) {
+                    Text("Mainnet").tag("mainnet")
+                    Text("Testnet").tag("testnet")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+            }
             
             Section {
-                Button("Import Wallet") {
-                    // Import wallet logic
-                }
+                Button(isImporting ? "Importing…" : "Import Wallet", action: importWallet)
                 .frame(maxWidth: .infinity)
+                .disabled(isImporting || seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || walletName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .navigationTitle("Import Wallet")
+        .alert("Error", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) { Button("OK") { errorMessage = nil } } message: { Text(errorMessage ?? "") }
+    }
+
+    private func importWallet() {
+        let phrase = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phrase.isEmpty else { return }
+        isImporting = true
+        Task { @MainActor in
+            do {
+                let valid = try MnemonicService.shared.validateMnemonic(phrase)
+                guard valid else { errorMessage = "Invalid recovery phrase"; isImporting = false; return }
+                let type: WalletType = (networkType == "mainnet") ? .bitcoin : .testnet
+                if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+                    let _ = try await repo.importWallet(mnemonic: phrase, name: walletName, type: type)
+                    dismiss()
+                } else {
+                    errorMessage = "Repository unavailable"
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isImporting = false
+        }
     }
 }
 
@@ -365,29 +499,101 @@ struct BackupView: View {
 }
 
 struct NetworkSettingsView: View {
-    @State private var network = "Mainnet"
-    @State private var customNode = ""
+    @AppStorage("network_type") private var networkType = "mainnet"
+    @AppStorage("electrum_host") private var host = "electrum.blockstream.info"
+    @AppStorage("electrum_port") private var port: Int = 50002
+    @AppStorage("electrum_ssl") private var useSSL: Bool = true
+    @AppStorage("gap_limit") private var gapLimit: Int = 20
+    @AppStorage("auto_rotate_receive") private var autoRotate: Bool = true
+    @State private var reconnecting = false
+    @State private var portText: String = ""
     
     var body: some View {
         Form {
             Section {
-                Picker("Network", selection: $network) {
-                    Text("Mainnet").tag("Mainnet")
-                    Text("Testnet").tag("Testnet")
-                    Text("Regtest").tag("Regtest")
+                Picker("Network", selection: $networkType) {
+                    Text("Mainnet").tag("mainnet")
+                    Text("Testnet").tag("testnet")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .onChange(of: networkType) { val in
+                    // Adjust default port when switching networks if using default host
+                    if host == "electrum.blockstream.info" {
+                        port = (val == "mainnet") ? 50002 : 60002
+                        portText = String(port)
+                        useSSL = true
+                    }
                 }
             } header: {
                 Text("Bitcoin Network")
             }
             
             Section {
-                TextField("Custom Node URL", text: $customNode)
-                Toggle("Use Tor", isOn: .constant(false))
+                TextField("Host", text: $host)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                HStack {
+                    Text("Port")
+                    Spacer()
+                    TextField("Port", text: $portText)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .onChange(of: portText) { s in
+                            let cleaned = s.filter { $0.isNumber }
+                            if cleaned != s { portText = cleaned }
+                            if let v = Int(cleaned), v >= 1 && v <= 65535 { port = v }
+                        }
+                        .frame(maxWidth: 100)
+                }
+                Toggle("Use SSL", isOn: $useSSL)
             } header: {
-                Text("Connection")
+                Text("Electrum Server")
+            }
+
+            Section {
+                HStack {
+                    Text("Gap Limit")
+                    Spacer()
+                    TextField("20", text: Binding(
+                        get: { String(gapLimit) },
+                        set: { s in if let v = Int(s.filter { $0.isNumber }), v >= 1 && v <= 1000 { gapLimit = v } }
+                    ))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 80)
+                }
+                Toggle("Auto-rotate receive address", isOn: $autoRotate)
+            } header: {
+                Text("Addresses")
+            } footer: {
+                Text("Gap limit is how many future receive addresses are pre-scanned to detect funds. 20 is standard.")
+            }
+            
+            Section {
+                Button(action: applyAndReconnect) {
+                    if reconnecting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                    } else {
+                        Text("Apply and Reconnect")
+                    }
+                }
+                .disabled(reconnecting)
             }
         }
         .navigationTitle("Network Settings")
+        .onAppear { portText = String(port) }
+    }
+    
+    private func applyAndReconnect() {
+        reconnecting = true
+        let net: BitcoinService.Network = (networkType == "mainnet") ? .mainnet : .testnet
+        ElectrumService.shared.updateServer(host: host, port: port, useSSL: useSSL, network: net)
+        ElectrumService.shared.disconnect()
+        ElectrumService.shared.connect()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            reconnecting = false
+        }
     }
 }
 

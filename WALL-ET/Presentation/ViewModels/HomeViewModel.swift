@@ -15,6 +15,7 @@ class HomeViewModel: ObservableObject {
     @Published var priceChange24h: Double = 5.67
     @Published var errorMessage: String?
     @Published var showError = false
+    @Published var chartData: [PricePoint] = []
     
     // MARK: - Services
     private let walletService: WalletServiceProtocol
@@ -88,6 +89,15 @@ class HomeViewModel: ObservableObject {
             let priceData = try await priceService.fetchBTCPrice()
             currentBTCPrice = priceData.price
             priceChange24h = priceData.change24h
+            // Placeholder sparkline points (optional)
+            if chartData.isEmpty {
+                let now = Date()
+                chartData = (0..<24).map { i in
+                    let d = Calendar.current.date(byAdding: .hour, value: -i, to: now) ?? now
+                    let jitter = Double(Int.random(in: -150...150)) / 100.0
+                    return PricePoint(date: d, price: max(0, priceData.price + jitter))
+                }.sorted { $0.date < $1.date }
+            }
         } catch {
             // Use cached price if fetch fails
             print("Failed to fetch price: \(error)")
@@ -181,18 +191,8 @@ struct TransactionModel: Identifiable, Codable {
     enum TransactionType: String, Codable {
         case sent, received
     }
-    
-    enum TransactionStatus: String, Codable {
-        case pending, confirmed, failed
-    }
 }
 
-struct PriceData {
-    let price: Double
-    let change24h: Double
-    let volume24h: Double
-    let marketCap: Double
-}
 
 // MARK: - Notification Names
 extension Notification.Name {

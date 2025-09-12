@@ -2,6 +2,27 @@
 
 App nativo e moderno para iOS, escrito em Swift 6, para gerenciamento de carteiras Bitcoin. Utiliza a arquitetura MVVM-C e os princípios da Clean Architecture para garantir escalabilidade, testabilidade e uma clara separação de responsabilidades.
 
+## Current Features (Testnet)
+
+- BIP39 + BIP32 key derivation with BIP84 (P2WPKH bech32 tb1…) on testnet
+- Electrum integration (NWConnection):
+  - Live balances via `blockchain.scripthash.get_balance` (sum over wallet addresses)
+  - Transaction history via `…get_history` + verbose `…transaction.get` (computed net amounts, confirmations, status)
+  - Broadcast raw transactions (`…transaction.broadcast`)
+- Build, sign and broadcast transactions on testnet (P2WPKH, signed with libsecp256k1)
+- Gap‑limit address discovery (m/84'/1'/0'/0/i) with persistence; ensures change path exists (m/…/1/0)
+- Create wallet from mnemonic (24 words) and import mnemonic; keys stored securely in Keychain
+- Real QR scanning with CodeScanner; supports BBQR multi‑part progress UI
+- Send / Receive only (Swap/Buy removed)
+- Manage Wallets shows real Core Data items; delete, navigate to Wallet detail
+- Empty states on Home/Transactions with Create/Import actions
+- Network Settings: host/port/SSL and “Apply & Reconnect” to Electrum (set a mainnet server if using mainnet wallets)
+- Dark mode toggle (AppStorage → preferredColorScheme)
+
+Notes
+- Mainnet/testnet can be selected when adding a wallet (BIP84 m/84'/0' for mainnet, m/84'/1' for testnet). Use a matching Electrum server in Network Settings.
+- Price data and fiat conversion use the internal PriceDataService; historical fiat values are not backfilled yet.
+
 * * *
 
 ## Estrutura de Diretórios Detalhada

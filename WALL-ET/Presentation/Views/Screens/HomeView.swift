@@ -1,17 +1,41 @@
 import SwiftUI
 
 struct HomeView: View {
+    @State private var wallets: [Wallet] = []
+    @State private var isLoadingWallets = false
+    @State private var showCreateSheet = false
+    @State private var showImportSheet = false
+    @State private var showSendSheet = false
+    @State private var showReceiveSheet = false
     @State private var showBalance = true
-    @State private var bitcoinBalance: Double = 1.23456789
-    @State private var fiatBalance: Double = 76543.21
-    @State private var priceChange: Double = 5.67
+    @State private var bitcoinBalance: Double = 0
+    @State private var fiatBalance: Double = 0
+    @State private var priceChange: Double = 0
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Balance Card
-                    VStack(spacing: 16) {
+                    if wallets.isEmpty && !isLoadingWallets {
+                        VStack(spacing: 16) {
+                            Image(systemName: "bitcoinsign.circle")
+                                .font(.system(size: 64))
+                                .foregroundColor(.orange)
+                            Text("No Wallets Yet")
+                                .font(.title2).bold()
+                            Text("Create or import a wallet to get started")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                            
+                            PrimaryButton(title: "Create Wallet") { showCreateSheet = true }
+                            SecondaryButton(title: "Import Wallet") { showImportSheet = true }
+                        }
+                        .padding(.vertical, 40)
+                    } else {
+                        // Balance Card
+                        VStack(spacing: 16) {
                         HStack {
                             Text("Total Balance")
                                 .font(.headline)
@@ -69,109 +93,19 @@ struct HomeView: View {
                                 )
                             }
                         }
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(16)
-                    
-                    // Quick Actions
-                    HStack(spacing: 12) {
-                        QuickActionButton(
-                            icon: "arrow.up",
-                            title: "Send",
-                            color: .orange
-                        )
-                        
-                        QuickActionButton(
-                            icon: "arrow.down",
-                            title: "Receive",
-                            color: .blue
-                        )
-                        
-                        QuickActionButton(
-                            icon: "arrow.2.squarepath",
-                            title: "Swap",
-                            color: .purple
-                        )
-                        
-                        QuickActionButton(
-                            icon: "chart.line.uptrend.xyaxis",
-                            title: "Buy",
-                            color: .green
-                        )
-                    }
-                    
-                    // Wallet Cards
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Wallets")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        WalletCard(
-                            walletName: "Main Wallet",
-                            address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-                            balance: 0.75432100,
-                            fiatValue: 46543.21,
-                            isTestnet: false
-                        )
-                        
-                        WalletCard(
-                            walletName: "Savings Wallet",
-                            address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-                            balance: 0.48024689,
-                            fiatValue: 30000.00,
-                            isTestnet: false
-                        )
-                        
-                        WalletCard(
-                            walletName: "Test Wallet",
-                            address: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
-                            balance: 10.5,
-                            fiatValue: 0,
-                            isTestnet: true
-                        )
-                    }
-                    
-                    // Recent Transactions
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("Recent Transactions")
-                                .font(.headline)
-                            Spacer()
-                            Button("See All") {
-                                // Navigate to transactions
-                            }
-                            .foregroundColor(.orange)
                         }
-                        .padding(.horizontal)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
                         
-                        VStack(spacing: 12) {
-                            TransactionRow(
-                                type: .received,
-                                amount: 0.00234567,
-                                fiatAmount: 145.67,
-                                address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-                                date: Date(),
-                                status: .confirmed
-                            )
-                            
-                            TransactionRow(
-                                type: .sent,
-                                amount: 0.00100000,
-                                fiatAmount: 62.00,
-                                address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-                                date: Date().addingTimeInterval(-3600),
-                                status: .pending
-                            )
-                            
-                            TransactionRow(
-                                type: .received,
-                                amount: 0.05000000,
-                                fiatAmount: 3100.00,
-                                address: "bc1q7g8u9w5z3qw7zyxkjmnf6rc02uxzwqg8l5a5n5",
-                                date: Date().addingTimeInterval(-86400),
-                                status: .confirmed
-                            )
+                        // Quick Actions (send/receive only)
+                        HStack(spacing: 12) {
+                            Button(action: { showSendSheet = true }) {
+                                QuickActionButton(icon: "arrow.up", title: "Send", color: .orange)
+                            }
+                            Button(action: { showReceiveSheet = true }) {
+                                QuickActionButton(icon: "arrow.down", title: "Receive", color: .blue)
+                            }
                         }
                     }
                 }
@@ -184,6 +118,36 @@ struct HomeView: View {
                         Image(systemName: "bell")
                     }
                 }
+            }
+            .onAppear { loadWallets() }
+            .sheet(isPresented: $showCreateSheet, onDismiss: { loadWallets() }) {
+                CreateWalletView()
+            }
+            .sheet(isPresented: $showImportSheet, onDismiss: { loadWallets() }) {
+                ImportWalletView()
+            }
+            .sheet(isPresented: $showSendSheet) {
+                SendView()
+            }
+            .sheet(isPresented: $showReceiveSheet) {
+                ReceiveView()
+            }
+        }
+    }
+}
+
+private extension HomeView {
+    func loadWallets() {
+        isLoadingWallets = true
+        Task {
+            if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+                let list = (try? await repo.getAllWallets()) ?? []
+                await MainActor.run {
+                    self.wallets = list
+                    self.isLoadingWallets = false
+                }
+            } else {
+                await MainActor.run { self.isLoadingWallets = false }
             }
         }
     }
@@ -280,6 +244,7 @@ struct TransactionRow: View {
     let address: String
     let date: Date
     let status: Status
+    let confirmations: Int
     
     var body: some View {
         HStack {
@@ -304,16 +269,12 @@ struct TransactionRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Text("\(type == .received ? "+" : "-")\(amount, specifier: "%.8f") BTC")
                         .font(.system(.subheadline, design: .monospaced))
                         .fontWeight(.semibold)
                     
-                    if status == .pending {
-                        Image(systemName: "clock")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
+                    confirmationsBadge
                 }
                 
                 Text("$\(fiatAmount, specifier: "%.2f")")
@@ -322,6 +283,20 @@ struct TransactionRow: View {
             }
         }
         .padding(.horizontal)
+    }
+    
+    private var confirmationsBadge: some View {
+        let conf = confirmations
+        let shown = min(conf, 6)
+        let text = conf >= 6 ? "6/6" : "\(shown)/6"
+        let color: Color = conf >= 6 ? .green : .orange
+        return Text(text)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15))
+            .foregroundColor(color)
+            .cornerRadius(6)
     }
 }
 

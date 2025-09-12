@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import Combine
 
 struct WalletDetailView: View {
     @StateObject private var viewModel: WalletDetailViewModel
@@ -74,7 +75,7 @@ struct WalletDetailView: View {
                 
                 // Quick Actions
                 HStack(spacing: 12) {
-                    ActionButton(
+                    BalanceQuickActionButton(
                         title: "Send",
                         icon: "arrow.up",
                         color: .orange,
@@ -82,8 +83,7 @@ struct WalletDetailView: View {
                             coordinator.showSend()
                         }
                     )
-                    
-                    ActionButton(
+                    BalanceQuickActionButton(
                         title: "Receive",
                         icon: "arrow.down",
                         color: .blue,
@@ -91,8 +91,7 @@ struct WalletDetailView: View {
                             coordinator.showReceive()
                         }
                     )
-                    
-                    ActionButton(
+                    BalanceQuickActionButton(
                         title: "Backup",
                         icon: "key",
                         color: .purple,
@@ -153,7 +152,8 @@ struct WalletDetailView: View {
                                 fiatAmount: transaction.amount * viewModel.currentBTCPrice,
                                 address: transaction.address,
                                 date: transaction.date,
-                                status: transaction.status == .confirmed ? .confirmed : .pending
+                                status: transaction.status == .confirmed ? .confirmed : .pending,
+                                confirmations: transaction.confirmations
                             )
                             .onTapGesture {
                                 coordinator.showTransactionDetail(transaction)
@@ -427,7 +427,7 @@ struct TimeRangeButton: View {
     }
 }
 
-struct ActionButton: View {
+struct WalletActionButton: View {
     let title: String
     let icon: String
     let color: Color
@@ -466,6 +466,7 @@ class WalletDetailViewModel: ObservableObject {
     private let walletId: String
     private let walletService: WalletServiceProtocol
     private let transactionService: TransactionServiceProtocol
+    private var cancellables = Set<AnyCancellable>()
     
     init(walletId: String,
          walletService: WalletServiceProtocol = WalletService(),
@@ -473,6 +474,10 @@ class WalletDetailViewModel: ObservableObject {
         self.walletId = walletId
         self.walletService = walletService
         self.transactionService = transactionService
+        ElectrumService.shared.transactionUpdatePublisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] update in self?.applyUpdate(update) }
+            .store(in: &cancellables)
     }
     
     func loadData() {
@@ -483,14 +488,18 @@ class WalletDetailViewModel: ObservableObject {
                 wallet = try? await walletService.getWalletDetails(uuid)
             }
             
-            // Load addresses
-            addresses = mockAddresses()
+            // Load addresses with live balances + tx counts
+            if let uuid = UUID(uuidString: walletId) {
+                addresses = await loadAddresses(for: uuid)
+            }
             
             // Load transactions
             transactions = (try? await transactionService.fetchRecentTransactions(limit: 10)) ?? []
             
-            // Load UTXOs
-            utxos = mockUTXOs()
+            // Load UTXOs (aggregated)
+            if let uuid = UUID(uuidString: walletId) {
+                utxos = await loadUTXOs(for: uuid)
+            }
             
             // Load chart data
             loadChartData(for: .week)
@@ -499,23 +508,50 @@ class WalletDetailViewModel: ObservableObject {
         }
     }
     
+    private func applyUpdate(_ update: ElectrumService.TransactionUpdate) {
+        if let idx = transactions.firstIndex(where: { $0.id == update.txid }) {
+            let t = transactions[idx]
+            let newStatus: TransactionStatus = update.confirmations >= 6 ? .confirmed : .pending
+            let updated = TransactionModel(
+                id: t.id,
+                type: t.type,
+                amount: t.amount,
+                fee: t.fee,
+                address: t.address,
+                date: t.date,
+                status: newStatus,
+                confirmations: update.confirmations
+            )
+            transactions[idx] = updated
+        }
+    }
+    
     func refresh() async {
         loadData()
     }
     
     func loadChartData(for range: WalletDetailView.TimeRange) {
-        // Mock chart data
-        var data: [ChartDataPoint] = []
-        let days = daysForRange(range)
-        let baseValue = wallet?.balance ?? 1.0
-        
-        for i in 0..<days {
-            let date = Calendar.current.date(byAdding: .day, value: -days + i, to: Date())!
-            let value = baseValue + Double.random(in: -0.1...0.1)
-            data.append(ChartDataPoint(date: date, value: value))
+        // Build a running balance series from transactions
+        let horizon: TimeInterval = {
+            switch range {
+            case .day: return 24 * 3600
+            case .week: return 7 * 24 * 3600
+            case .month: return 30 * 24 * 3600
+            case .threeMonths: return 90 * 24 * 3600
+            case .year: return 365 * 24 * 3600
+            case .all: return 10 * 365 * 24 * 3600
+            }
+        }()
+        let cutoff = Date().addingTimeInterval(-horizon)
+        let txs = transactions.sorted { $0.date < $1.date }
+        var running: Double = 0
+        var points: [ChartDataPoint] = []
+        for t in txs {
+            running += (t.type == .received ? t.amount : -t.amount)
+            if t.date >= cutoff { points.append(ChartDataPoint(date: t.date, value: running)) }
         }
-        
-        chartData = data
+        if points.isEmpty { points = [ChartDataPoint(date: Date(), value: 0)] }
+        chartData = points
     }
     
     private func daysForRange(_ range: WalletDetailView.TimeRange) -> Int {
@@ -549,43 +585,63 @@ class WalletDetailViewModel: ObservableObject {
         // Show delete confirmation
     }
     
-    // Mock data
-    private func mockAddresses() -> [AddressModel] {
-        return [
-            AddressModel(
-                index: 0,
-                address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-                label: "Primary",
-                balance: 0.5,
-                transactionCount: 12,
-                derivationPath: "m/84'/0'/0'/0/0"
-            ),
-            AddressModel(
-                index: 1,
-                address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-                label: "Secondary",
-                balance: 0.25,
-                transactionCount: 5,
-                derivationPath: "m/84'/0'/0'/0/1"
-            )
-        ]
+    // Live data helpers
+    private func loadAddresses(for walletId: UUID) async -> [AddressModel] {
+        let repo = DefaultWalletRepository(keychainService: KeychainService())
+        let addrs = repo.listAddresses(for: walletId)
+        if addrs.isEmpty { return [] }
+        return await withTaskGroup(of: AddressModel?.self, returning: [AddressModel].self) { group in
+            for (i, addr) in addrs.enumerated() {
+                group.addTask {
+                    // Fetch balance
+                    let balance: Double = await withCheckedContinuation { (cont: CheckedContinuation<Double, Never>) in
+                        ElectrumService.shared.getBalance(for: addr) { result in
+                            switch result {
+                            case .success(let ab): cont.resume(returning: Double(ab.confirmed + ab.unconfirmed) / 100_000_000.0)
+                            case .failure: cont.resume(returning: 0)
+                            }
+                        }
+                    }
+                    // Fetch tx count
+                    let txCount: Int = await withCheckedContinuation { (cont: CheckedContinuation<Int, Never>) in
+                        ElectrumService.shared.getAddressHistory(for: addr) { result in
+                            switch result { case .success(let hist): cont.resume(returning: hist.count); case .failure: cont.resume(returning: 0) }
+                        }
+                    }
+                    return AddressModel(index: i, address: addr, label: i == 0 ? "Primary" : nil, balance: balance, transactionCount: txCount, derivationPath: "")
+                }
+            }
+            var result: [AddressModel] = []
+            for await m in group { if let m { result.append(m) } }
+            return result.sorted { $0.index < $1.index }
+        }
     }
-    
-    private func mockUTXOs() -> [UTXOModel] {
-        return [
-            UTXOModel(
-                txid: "f4184fc596403b9d638783cf57adfe4c75c605f6",
-                vout: 0,
-                value: 0.1,
-                confirmations: 144
-            ),
-            UTXOModel(
-                txid: "a1075db55d416d3ca199f55b6084e2115b9345e1",
-                vout: 1,
-                value: 0.05,
-                confirmations: 288
-            )
-        ]
+
+    private func loadUTXOs(for walletId: UUID) async -> [UTXOModel] {
+        let repo = DefaultWalletRepository(keychainService: KeychainService())
+        let addrs = repo.listAddresses(for: walletId)
+        if addrs.isEmpty { return [] }
+        return await withTaskGroup(of: [UTXOModel].self, returning: [UTXOModel].self) { group in
+            for addr in addrs {
+                group.addTask {
+                    let res: [UTXOModel] = await withCheckedContinuation { (cont: CheckedContinuation<[UTXOModel], Never>) in
+                        ElectrumService.shared.getUTXOs(for: addr) { result in
+                            switch result {
+                            case .success(let utxos):
+                                let mapped = utxos.map { UTXOModel(txid: $0.txHash, vout: $0.txPos, value: Double($0.value) / 100_000_000.0, confirmations: max(0, $0.height)) }
+                                cont.resume(returning: mapped)
+                            case .failure:
+                                cont.resume(returning: [])
+                            }
+                        }
+                    }
+                    return res
+                }
+            }
+            var all: [UTXOModel] = []
+            for await arr in group { all.append(contentsOf: arr) }
+            return all
+        }
     }
 }
 

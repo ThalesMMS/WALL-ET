@@ -150,6 +150,32 @@ class PriceDataService {
     }
 }
 
+// MARK: - Data Models
+struct PriceData {
+    let price: Double
+    let change24h: Double
+    let changePercentage24h: Double
+    let volume24h: Double
+    let marketCap: Double
+    let currency: String
+    let timestamp: Date
+}
+
+struct MarketData {
+    let rank: Int
+    let circulatingSupply: Double
+    let totalSupply: Double
+    let ath: Double
+    let athDate: Date?
+    let atl: Double
+    let atlDate: Date?
+}
+
+struct ChartPoint {
+    let timestamp: Date
+    let price: Double
+}
+
 // MARK: - Price Provider Protocol
 protocol PriceProvider {
     var name: String { get }
@@ -194,11 +220,10 @@ class CoinGeckoProvider: PriceProvider {
             rank: response.market_cap_rank ?? 1,
             circulatingSupply: response.market_data?.circulating_supply ?? 0,
             totalSupply: response.market_data?.total_supply ?? 21_000_000,
-            maxSupply: 21_000_000,
             ath: response.market_data?.ath?["usd"] ?? 0,
-            athDate: response.market_data?.ath_date?["usd"] ?? "",
+            athDate: nil,
             atl: response.market_data?.atl?["usd"] ?? 0,
-            atlDate: response.market_data?.atl_date?["usd"] ?? ""
+            atlDate: nil
         )
     }
     
@@ -266,7 +291,13 @@ class BinanceProvider: PriceProvider {
         
         let endpoint = "\(baseURL)/klines?symbol=\(symbol)&interval=\(interval)&limit=\(limit)"
         
-        let response: [[Any]] = try await networkManager.fetch(from: endpoint)
+        // Binance returns an array of arrays, need custom handling
+        guard let url = URL(string: endpoint) else {
+            throw PriceError.invalidURL
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONSerialization.jsonObject(with: data) as? [[Any]] ?? []
         
         return response.compactMap { kline in
             guard kline.count >= 5,
@@ -504,22 +535,6 @@ struct KrakenTickerResponse: Codable {
     }
 }
 
-// MARK: - Data Models
-struct MarketData {
-    let rank: Int
-    let circulatingSupply: Double
-    let totalSupply: Double
-    let maxSupply: Double
-    let ath: Double
-    let athDate: String
-    let atl: Double
-    let atlDate: String
-}
-
-struct ChartPoint {
-    let timestamp: Date
-    let price: Double
-}
 
 // MARK: - Errors
 enum PriceError: LocalizedError {

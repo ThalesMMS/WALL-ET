@@ -1,137 +1,106 @@
 import SwiftUI
 
 struct TransactionsView: View {
-    @State private var searchText = ""
-    @State private var filterType: TransactionFilter = .all
     @State private var selectedTransaction: TransactionItem?
+    @State private var wallets: [Wallet] = []
+    @State private var isLoadingWallets = false
+    @State private var showCreateSheet = false
+    @State private var showImportSheet = false
     
-    enum TransactionFilter: String, CaseIterable {
-        case all = "All"
-        case sent = "Sent"
-        case received = "Received"
-        case pending = "Pending"
-    }
+    @StateObject private var txvm = TransactionsViewModel()
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Filter Pills
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(TransactionFilter.allCases, id: \.self) { filter in
-                            FilterPill(
-                                title: filter.rawValue,
-                                isSelected: filterType == filter,
-                                action: { filterType = filter }
-                            )
+            List {
+                Section { filterBar }
+                if wallets.isEmpty && !isLoadingWallets {
+                    Section {
+                        VStack(spacing: 16) {
+                            Image(systemName: "clock.arrow.circlepath").font(.system(size: 40)).foregroundColor(.secondary)
+                            Text("No transactions yet").font(.headline)
+                            Text("Create or import a wallet to see history.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            HStack(spacing: 12) {
+                                Button(action: { showCreateSheet = true }) { Text("Create Wallet").frame(maxWidth: .infinity) }
+                                .buttonStyle(.borderedProminent).tint(.orange)
+                                Button(action: { showImportSheet = true }) { Text("Import Wallet").frame(maxWidth: .infinity) }
+                                .buttonStyle(.bordered)
+                            }
+                            .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                } else {
+                    ForEach(txvm.groupedTransactions(), id: \.0) { section in
+                        Section(section.0) {
+                            ForEach(section.1, id: \.id) { model in
+                                TransactionListItem(transaction: toItem(model))
+                                    .onAppear { txvm.loadMoreIfNeeded(currentItem: model) }
+                            }
                         }
                     }
-                    .padding()
-                }
-                
-                // Transactions List
-                List {
-                    // Group by date
-                    Section {
-                        TransactionListItem(
-                            transaction: TransactionItem(
-                                id: "1",
-                                type: .received,
-                                amount: 0.00234567,
-                                fiatAmount: 145.67,
-                                address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-                                date: Date(),
-                                status: .confirmed,
-                                confirmations: 6,
-                                fee: 0.00001234
-                            )
-                        )
-                        
-                        TransactionListItem(
-                            transaction: TransactionItem(
-                                id: "2",
-                                type: .sent,
-                                amount: 0.00100000,
-                                fiatAmount: 62.00,
-                                address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-                                date: Date().addingTimeInterval(-3600),
-                                status: .pending,
-                                confirmations: 0,
-                                fee: 0.00000546
-                            )
-                        )
-                    } header: {
-                        Text("Today")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                    }
-                    
-                    Section {
-                        TransactionListItem(
-                            transaction: TransactionItem(
-                                id: "3",
-                                type: .received,
-                                amount: 0.05000000,
-                                fiatAmount: 3100.00,
-                                address: "bc1q7g8u9w5z3qw7zyxkjmnf6rc02uxzwqg8l5a5n5",
-                                date: Date().addingTimeInterval(-86400),
-                                status: .confirmed,
-                                confirmations: 144,
-                                fee: 0.00001000
-                            )
-                        )
-                        
-                        TransactionListItem(
-                            transaction: TransactionItem(
-                                id: "4",
-                                type: .sent,
-                                amount: 0.00500000,
-                                fiatAmount: 310.00,
-                                address: "bc1qm34lsc65zpw79lxkyj4u5qt5qm7z9thx0wqh",
-                                date: Date().addingTimeInterval(-86400 * 2),
-                                status: .confirmed,
-                                confirmations: 288,
-                                fee: 0.00000800
-                            )
-                        )
-                    } header: {
-                        Text("Yesterday")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                    }
-                    
-                    Section {
-                        ForEach(0..<10) { index in
-                            TransactionListItem(
-                                transaction: TransactionItem(
-                                    id: "older-\(index)",
-                                    type: index % 2 == 0 ? .received : .sent,
-                                    amount: Double.random(in: 0.001...0.1),
-                                    fiatAmount: Double.random(in: 60...6000),
-                                    address: "bc1q\(String(repeating: "x", count: 39))",
-                                    date: Date().addingTimeInterval(-86400 * Double(index + 3)),
-                                    status: .confirmed,
-                                    confirmations: 1000 + index * 144,
-                                    fee: 0.00000500
-                                )
-                            )
-                        }
-                    } header: {
-                        Text("This Week")
-                            .font(.headline)
-                            .foregroundColor(.primary)
+                    if txvm.isLoading {
+                        Section { ProgressView("Loading…") }
                     }
                 }
-                .listStyle(InsetGroupedListStyle())
-                .searchable(text: $searchText, prompt: "Search transactions")
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("Transactions")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {}) {
-                        Image(systemName: "arrow.down.doc")
-                    }
+            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button(action: {}) { Image(systemName: "arrow.down.doc") } } }
+            .searchable(text: $txvm.searchText, prompt: "Search transactions")
+            .onAppear { loadWallets() }
+            .sheet(isPresented: $showCreateSheet, onDismiss: { loadWallets() }) { CreateWalletView() }
+            .sheet(isPresented: $showImportSheet, onDismiss: { loadWallets() }) { ImportWalletView() }
+        }
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(TransactionsViewModel.TransactionFilter.allCases), id: \.self) { filter in
+                    FilterPill(
+                        title: filter.rawValue,
+                        isSelected: txvm.selectedFilter == filter,
+                        action: { txvm.selectedFilter = filter }
+                    )
                 }
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal)
+        }
+    }
+
+    // content now rendered inside List
+
+    private func toItem(_ m: TransactionModel) -> TransactionItem {
+        // Fiat mapping can be added with live price
+        return TransactionItem(
+            id: m.id,
+            type: m.type == .sent ? .sent : .received,
+            amount: m.amount,
+            fiatAmount: 0,
+            address: m.address,
+            date: m.date,
+            status: m.status,
+            confirmations: m.confirmations,
+            fee: m.fee
+        )
+    }
+}
+
+private extension TransactionsView {
+    func loadWallets() {
+        isLoadingWallets = true
+        Task {
+            if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+                let list = (try? await repo.getAllWallets()) ?? []
+                await MainActor.run {
+                    self.wallets = list
+                    self.isLoadingWallets = false
+                }
+            } else {
+                await MainActor.run { self.isLoadingWallets = false }
             }
         }
     }
@@ -172,10 +141,6 @@ struct TransactionItem: Identifiable {
     enum TransactionType {
         case sent, received
     }
-    
-    enum TransactionStatus {
-        case pending, confirmed, failed
-    }
 }
 
 struct TransactionListItem: View {
@@ -213,16 +178,11 @@ struct TransactionListItem: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    HStack {
+                    HStack(spacing: 6) {
                         Text(formatDate(transaction.date))
                             .font(.caption2)
                             .foregroundColor(.secondary)
-                        
-                        if transaction.status == .confirmed {
-                            Text("• \(transaction.confirmations) confirmations")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
+                        confirmationsBadge
                     }
                 }
                 
@@ -257,6 +217,20 @@ struct TransactionListItem: View {
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
     }
+    
+    private var confirmationsBadge: some View {
+        let conf = transaction.confirmations
+        let shown = min(conf, 6)
+        let text = "\(shown)/6"
+        let color: Color = conf >= 6 ? .green : .orange
+        return Text(text)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15))
+            .foregroundColor(color)
+            .cornerRadius(6)
+    }
 }
 
 struct TransactionDetailView: View {
@@ -278,11 +252,11 @@ struct TransactionDetailView: View {
                                     .foregroundColor(transaction.type == .received ? .green : .red)
                             )
                         
-                        Text("\(transaction.type == .received ? "+" : "-")\(transaction.amount, specifier: "%.8f") BTC")
+                        Text("\(transaction.type == .received ? "+" : "-")\(String(format: "%.8f", transaction.amount)) BTC")
                             .font(.system(.title, design: .monospaced))
                             .fontWeight(.bold)
                         
-                        Text("$\(transaction.fiatAmount, specifier: "%.2f") USD")
+                        Text("$\(String(format: "%.2f", transaction.fiatAmount)) USD")
                             .font(.title2)
                             .foregroundColor(.secondary)
                         
@@ -299,7 +273,7 @@ struct TransactionDetailView: View {
                         DetailRow(label: "Date", value: formatFullDate(transaction.date))
                         DetailRow(label: "Address", value: transaction.address, copyable: true)
                         DetailRow(label: "Transaction ID", value: "f4184fc596403b9d638783cf57adfe4c75c605f6", copyable: true)
-                        DetailRow(label: "Network Fee", value: "\(transaction.fee, specifier: "%.8f") BTC")
+                        DetailRow(label: "Network Fee", value: String(format: "%.8f BTC", transaction.fee))
                         if transaction.status == .confirmed {
                             DetailRow(label: "Confirmations", value: "\(transaction.confirmations)")
                             DetailRow(label: "Block", value: "808,185")
@@ -350,7 +324,7 @@ struct TransactionDetailView: View {
 }
 
 struct StatusBadge: View {
-    let status: TransactionItem.TransactionStatus
+    let status: TransactionStatus
     let confirmations: Int
     
     var body: some View {

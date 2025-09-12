@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import CoreImage.CIFilterBuiltins
 
 struct SendReceiveView: View {
@@ -35,20 +36,22 @@ struct SendView: View {
     @State private var showScanner = false
     @State private var showConfirmation = false
     @State private var useMaxAmount = false
-    
-    let btcPrice: Double = 62000 // Mock price
-    let availableBalance: Double = 1.23456789
+    @State private var btcPrice: Double = 0
+    @State private var availableBalance: Double = 0
+    @State private var estVBytes: Int = 140
     
     enum FeeOption: String, CaseIterable {
         case slow = "Slow"
         case normal = "Normal"
         case fast = "Fast"
+        case custom = "Custom"
         
         var description: String {
             switch self {
             case .slow: return "~60 min"
             case .normal: return "~30 min"
             case .fast: return "~10 min"
+            case .custom: return "custom"
             }
         }
         
@@ -57,17 +60,16 @@ struct SendView: View {
             case .slow: return 5
             case .normal: return 20
             case .fast: return 50
+            case .custom: return 15
             }
         }
         
-        var estimatedFee: Double {
-            switch self {
-            case .slow: return 0.00002500
-            case .normal: return 0.00010000
-            case .fast: return 0.00025000
-            }
+        // Display-only; actual fee computed in service. Assume ~140 vbytes typical tx
+        func estimatedFeeBTC(approxVBytes: Int = 140) -> Double {
+            Double(approxVBytes * satPerByte) / 100_000_000.0
         }
     }
+    @State private var customSatPerByte: Double = 15
     
     var body: some View {
         ScrollView {
@@ -131,7 +133,8 @@ struct SendView: View {
                         Button(action: {
                             useMaxAmount.toggle()
                             if useMaxAmount {
-                                let maxAmount = availableBalance - selectedFeeOption.estimatedFee
+                                let feeBtc = Double(estVBytes * effectiveSatPerByte()) / 100_000_000.0
+                                let maxAmount = max(0, availableBalance - feeBtc)
                                 btcAmount = String(format: "%.8f", maxAmount)
                                 fiatAmount = String(format: "%.2f", maxAmount * btcPrice)
                             }
@@ -191,35 +194,7 @@ struct SendView: View {
                     }
                 }
                 
-                // Network Fee
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Network Fee", systemImage: "gauge")
-                        .font(.headline)
-                    
-                    HStack(spacing: 12) {
-                        ForEach(FeeOption.allCases, id: \.self) { option in
-                            FeeOptionButton(
-                                option: option,
-                                isSelected: selectedFeeOption == option,
-                                action: { selectedFeeOption = option }
-                            )
-                        }
-                    }
-                    
-                    HStack {
-                        Text("Estimated fee:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Text("\(selectedFeeOption.estimatedFee, specifier: "%.8f") BTC")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        
-                        Text("($\(selectedFeeOption.estimatedFee * btcPrice, specifier: "%.2f"))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                feeSelectorSection
                 
                 // Note (Optional)
                 VStack(alignment: .leading, spacing: 8) {
@@ -231,7 +206,7 @@ struct SendView: View {
                 }
                 
                 // Send Button
-                Button(action: { showConfirmation = true }) {
+                Button(action: { Task { await recalcEstimate(); showConfirmation = true } }) {
                     HStack {
                         Image(systemName: "paperplane.fill")
                         Text("Review Transaction")
@@ -247,14 +222,87 @@ struct SendView: View {
             }
             .padding()
         }
+        .task {
+            // Load available balance and price
+            if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+                // Sum across first wallet account
+                if let wallet = try? await repo.getAllWallets().first,
+                   let addr = wallet.accounts.first?.address,
+                   let bal = try? await repo.getBalance(for: addr) {
+                    availableBalance = bal.btcValue
+                } else {
+                    availableBalance = 0
+                }
+            }
+            btcPrice = (try? await PriceService().fetchBTCPrice().price) ?? 0
+            await recalcEstimate()
+        }
         .sheet(isPresented: $showConfirmation) {
             TransactionConfirmationView(
                 recipientAddress: recipientAddress,
                 btcAmount: Double(btcAmount) ?? 0,
                 fiatAmount: Double(fiatAmount) ?? 0,
-                fee: selectedFeeOption.estimatedFee,
+                fee: Double(effectiveSatPerByte()),
+                estimatedVBytes: estVBytes,
                 note: note
             )
+        }
+        // Re-estimation is performed on initial task and before showing confirmation.
+    }
+    
+    private func effectiveSatPerByte() -> Int {
+        selectedFeeOption == .custom ? Int(customSatPerByte) : selectedFeeOption.satPerByte
+    }
+    private func currentEstimatedFeeBTC() -> Double {
+        Double(estVBytes * effectiveSatPerByte()) / 100_000_000.0
+    }
+    
+    private func recalcEstimate() async {
+        guard let amount = Double(btcAmount), amount > 0, !recipientAddress.isEmpty else { return }
+        if let est = try? await TransactionService().estimateFee(to: recipientAddress, amount: amount, feeRateSatPerVb: effectiveSatPerByte()) {
+            await MainActor.run { estVBytes = est.vbytes }
+        }
+    }
+}
+
+private extension SendView {
+    @ViewBuilder
+    var feeSelectorSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Network Fee", systemImage: "gauge")
+                .font(.headline)
+            
+            HStack(spacing: 12) {
+                ForEach(FeeOption.allCases, id: \.self) { option in
+                    FeeOptionButton(
+                        option: option,
+                        isSelected: selectedFeeOption == option,
+                        action: { selectedFeeOption = option }
+                    )
+                }
+            }
+            if selectedFeeOption == .custom {
+                HStack {
+                    Text("\(Int(customSatPerByte)) sat/vB")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Slider(value: $customSatPerByte, in: 1...200, step: 1)
+                }
+            }
+            
+            HStack {
+                Text("Estimated fee:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("\(currentEstimatedFeeBTC(), specifier: "%.8f") BTC")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                
+                Text("($\(currentEstimatedFeeBTC() * btcPrice, specifier: "%.2f"))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 }
@@ -295,11 +343,15 @@ struct FeeOptionButton: View {
 }
 
 struct ReceiveView: View {
-    @State private var walletAddress = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+    @EnvironmentObject var coordinator: AppCoordinator
+    @State private var walletAddress = ""
+    @AppStorage("gap_limit") private var gapLimit: Int = 20
+    @AppStorage("auto_rotate_receive") private var autoRotate = true
     @State private var requestAmount = ""
     @State private var note = ""
     @State private var showShareSheet = false
     @State private var copied = false
+    // Removed polling; react to Electrum scripthash notifications instead
     
     var qrCodeImage: UIImage {
         generateQRCode(from: buildBitcoinURI())
@@ -404,8 +456,17 @@ struct ReceiveView: View {
             }
             .padding()
         }
+        .onAppear { refreshReceiveAddress() }
+        .onReceive(ElectrumService.shared.transactionUpdatePublisher) { _ in
+            refreshReceiveAddress()
+        }
+        .onReceive(ElectrumService.shared.addressStatusPublisher) { update in
+            if autoRotate, update.address == walletAddress, update.hasHistory {
+                refreshReceiveAddress()
+            }
+        }
         .sheet(isPresented: $showShareSheet) {
-            ShareSheet(activityItems: [walletAddress])
+            SendReceiveShareSheet(activityItems: [walletAddress])
         }
     }
     
@@ -436,6 +497,38 @@ struct ReceiveView: View {
         
         return UIImage(systemName: "xmark.circle") ?? UIImage()
     }
+
+    private func refreshReceiveAddress() {
+        Task { @MainActor in
+            if let selected = coordinator.selectedWallet {
+                if let next = await WalletService().getNextReceiveAddress(for: selected.id, gap: gapLimit) {
+                    walletAddress = next
+                    ElectrumService.shared.subscribeToAddress(next)
+                    return
+                }
+                walletAddress = selected.address
+                ElectrumService.shared.subscribeToAddress(selected.address)
+            } else if let active = await WalletService().getActiveWallet() {
+                if let next = await WalletService().getNextReceiveAddress(for: active.id, gap: gapLimit) {
+                    walletAddress = next
+                    ElectrumService.shared.subscribeToAddress(next)
+                    return
+                }
+                walletAddress = active.address
+                ElectrumService.shared.subscribeToAddress(active.address)
+            } else if let first = try? await WalletService().fetchWallets().first {
+                if let next = await WalletService().getNextReceiveAddress(for: first.id, gap: gapLimit) {
+                    walletAddress = next
+                    ElectrumService.shared.subscribeToAddress(next)
+                } else {
+                    walletAddress = first.address
+                    ElectrumService.shared.subscribeToAddress(first.address)
+                }
+            }
+        }
+    }
+
+    // Polling removed; rotation now driven by Electrum notifications
 }
 
 struct AddressFormatRow: View {
@@ -487,14 +580,16 @@ struct TransactionConfirmationView: View {
     let recipientAddress: String
     let btcAmount: Double
     let fiatAmount: Double
+    // Pass sat/vB as fee for the service; we show estimated BTC here
     let fee: Double
+    let estimatedVBytes: Int
     let note: String
     @Environment(\.dismiss) var dismiss
     @State private var isProcessing = false
     
-    var totalBTC: Double {
-        btcAmount + fee
-    }
+    private var feeRateSatPerVb: Int { Int(fee) }
+    private var estimatedFeeBTC: Double { Double(estimatedVBytes * feeRateSatPerVb) / 100_000_000.0 }
+    var totalBTC: Double { btcAmount + estimatedFeeBTC }
     
     var body: some View {
         NavigationView {
@@ -519,13 +614,14 @@ struct TransactionConfirmationView: View {
                     // Transaction Details
                     VStack(spacing: 16) {
                         ConfirmationRow(label: "To", value: recipientAddress, truncate: true)
-                        ConfirmationRow(label: "Amount", value: "\(btcAmount, specifier: "%.8f") BTC")
-                        ConfirmationRow(label: "Amount (USD)", value: "$\(fiatAmount, specifier: "%.2f")")
-                        ConfirmationRow(label: "Network Fee", value: "\(fee, specifier: "%.8f") BTC")
+                        ConfirmationRow(label: "Amount", value: "\(String(format: "%.8f", btcAmount)) BTC")
+                        ConfirmationRow(label: "Amount (USD)", value: "$\(String(format: "%.2f", fiatAmount))")
+                        ConfirmationRow(label: "Fee rate", value: "\(feeRateSatPerVb) sat/vB")
+                        ConfirmationRow(label: "Est. Fee", value: "\(String(format: "%.8f", estimatedFeeBTC)) BTC")
                         Divider()
                         ConfirmationRow(
                             label: "Total",
-                            value: "\(totalBTC, specifier: "%.8f") BTC",
+                            value: "\(String(format: "%.8f", totalBTC)) BTC",
                             isTotal: true
                         )
                         
@@ -617,7 +713,7 @@ struct ConfirmationRow: View {
     }
 }
 
-struct ShareSheet: UIViewControllerRepresentable {
+struct SendReceiveShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
     
     func makeUIViewController(context: Context) -> UIActivityViewController {

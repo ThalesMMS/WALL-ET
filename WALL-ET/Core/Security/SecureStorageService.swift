@@ -2,13 +2,14 @@ import Foundation
 import Security
 import CryptoKit
 import LocalAuthentication
+import CommonCrypto
 
 // MARK: - Secure Storage Service
 class SecureStorageService {
     
     // MARK: - Properties
     static let shared = SecureStorageService()
-    private let keychainService = KeychainService()
+    private let keychainService = InternalKeychainService()
     private let encryptionService = EncryptionService()
     
     // MARK: - Keys
@@ -191,7 +192,7 @@ class SecureStorageService {
 }
 
 // MARK: - Keychain Service
-class KeychainService {
+class InternalKeychainService {
     
     private let serviceName = "com.wallet.bitcoin"
     
@@ -327,7 +328,7 @@ class EncryptionService {
     
     // MARK: - Master Key Management
     private func getOrCreateMasterKey() throws -> SymmetricKey {
-        let keychain = KeychainService()
+        let keychain = InternalKeychainService()
         let keyIdentifier = "wallet.master.encryption.key"
         
         if let keyData = keychain.retrieve(key: keyIdentifier) {

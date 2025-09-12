@@ -45,14 +45,7 @@ protocol AddressServiceProtocol {
     func getAddressTransactions(_ address: String) async throws -> [TransactionModel]
 }
 
-// MARK: - Keychain Service Protocol
-protocol KeychainServiceProtocol {
-    func save(key: String, value: Data) throws
-    func load(key: String) throws -> Data?
-    func delete(key: String) throws
-    func saveSecureEnclave(key: String, value: Data) throws
-    func loadSecureEnclave(key: String) throws -> Data?
-}
+// MARK: - Keychain Service Protocol is defined in KeychainServiceProtocol.swift
 
 // MARK: - Network Service Protocol
 protocol NetworkServiceProtocol {

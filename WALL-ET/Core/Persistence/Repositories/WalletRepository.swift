@@ -16,11 +16,14 @@ class WalletRepository {
     
     func createWallet(name: String, type: String, derivationPath: String?, network: String) -> WalletEntity {
         let wallet = WalletEntity(context: context)
+        wallet.id = UUID()
         wallet.name = name
         wallet.type = type
         wallet.derivationPath = derivationPath
         wallet.network = network
         wallet.isActive = false
+        wallet.createdAt = Date()
+        wallet.updatedAt = Date()
         
         save()
         return wallet

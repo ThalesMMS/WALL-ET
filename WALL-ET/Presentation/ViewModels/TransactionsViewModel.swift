@@ -55,6 +55,13 @@ class TransactionsViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        ElectrumService.shared.transactionUpdatePublisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] update in
+                self?.applyUpdate(update)
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Data Loading
@@ -165,7 +172,7 @@ class TransactionsViewModel: ObservableObject {
         Task {
             do {
                 let exportURL = try await transactionService.exportTransactions(
-                    transactions: filteredTransactions,
+                    filteredTransactions,
                     format: format
                 )
                 
@@ -218,6 +225,28 @@ class TransactionsViewModel: ObservableObject {
     private func handleNewTransaction(_ transaction: TransactionModel) {
         transactions.insert(transaction, at: 0)
         applyFilters(searchText: searchText, filter: selectedFilter)
+    }
+
+    private func applyUpdate(_ update: ElectrumService.TransactionUpdate) {
+        func updated(_ t: TransactionModel) -> TransactionModel {
+            var status = t.status
+            if update.confirmations >= 6 { status = .confirmed }
+            else if update.confirmations >= 1 { status = .pending }
+            return TransactionModel(
+                id: t.id,
+                type: t.type,
+                amount: t.amount,
+                fee: t.fee,
+                address: t.address,
+                date: t.date,
+                status: status,
+                confirmations: update.confirmations
+            )
+        }
+        if let idx = transactions.firstIndex(where: { $0.id == update.txid }) {
+            transactions[idx] = updated(transactions[idx])
+            applyFilters(searchText: searchText, filter: selectedFilter)
+        }
     }
 }
 

@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1203C92A2E745F970026E3E3 /* libsecp256k1 in Frameworks */ = {isa = PBXBuildFile; productRef = 1203C9292E745F970026E3E3 /* libsecp256k1 */; };
+		1203C92F2E7494760026E3E3 /* CodeScanner in Frameworks */ = {isa = PBXBuildFile; productRef = 1203C92E2E7494760026E3E3 /* CodeScanner */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		12E2F9592E73DFBE006A08FE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1203C92F2E7494760026E3E3 /* CodeScanner in Frameworks */,
+				1203C92A2E745F970026E3E3 /* libsecp256k1 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = "WALL-ET";
 			packageProductDependencies = (
+				1203C9292E745F970026E3E3 /* libsecp256k1 */,
+				1203C92E2E7494760026E3E3 /* CodeScanner */,
 			);
 			productName = "WALL-ET";
 			productReference = 12E2F9492E73DFBD006A08FE /* WALL-ET.app */;
@@ -195,6 +204,10 @@
 			);
 			mainGroup = 12E2F9402E73DFBD006A08FE;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1203C9282E745F970026E3E3 /* XCRemoteSwiftPackageReference "secp256k1" */,
+				1203C92D2E7494760026E3E3 /* XCRemoteSwiftPackageReference "CodeScanner" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 12E2F94A2E73DFBD006A08FE /* Products */;
 			projectDirPath = "";
@@ -560,6 +573,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1203C9282E745F970026E3E3 /* XCRemoteSwiftPackageReference "secp256k1" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/GigaBitcoin/secp256k1.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.21.1;
+			};
+		};
+		1203C92D2E7494760026E3E3 /* XCRemoteSwiftPackageReference "CodeScanner" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/twostraws/CodeScanner";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1203C9292E745F970026E3E3 /* libsecp256k1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1203C9282E745F970026E3E3 /* XCRemoteSwiftPackageReference "secp256k1" */;
+			productName = libsecp256k1;
+		};
+		1203C92E2E7494760026E3E3 /* CodeScanner */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1203C92D2E7494760026E3E3 /* XCRemoteSwiftPackageReference "CodeScanner" */;
+			productName = CodeScanner;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 12E2F9412E73DFBD006A08FE /* Project object */;
 }

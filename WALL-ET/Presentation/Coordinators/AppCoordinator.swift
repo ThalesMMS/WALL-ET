@@ -113,6 +113,8 @@ class AppCoordinator: ObservableObject {
         setupDependencies()
         setupNotificationObservers()
         checkForOnboarding()
+        // Ensure Electrum connects early so requests don't hang on first use
+        ElectrumService.shared.connect()
     }
     
     // MARK: - Dependency Injection Setup
@@ -122,28 +124,13 @@ class AppCoordinator: ObservableObject {
             KeychainService()
         }
         
-        container.register(WalletServiceProtocol.self) {
-            WalletService()
-        }
-        
-        container.register(TransactionServiceProtocol.self) {
-            TransactionService()
-        }
-        
-        container.register(PriceServiceProtocol.self) {
-            PriceService()
-        }
-        
-        container.register(FeeServiceProtocol.self) {
-            FeeService()
-        }
-        
-        // Register repositories
+        container.register(WalletServiceProtocol.self) { WalletService() }
+        container.register(TransactionServiceProtocol.self) { TransactionService() }
+        container.register(PriceServiceProtocol.self) { PriceService() }
+        container.register(FeeServiceProtocol.self) { FeeService() }
+        // Register repositories (real implementation)
         container.register(WalletRepositoryProtocol.self) {
-            WalletRepository(
-                storageService: StorageService(),
-                keychainService: self.container.resolve(KeychainServiceProtocol.self)!
-            )
+            DefaultWalletRepository(keychainService: self.container.resolve(KeychainServiceProtocol.self)!)
         }
         
         // Register use cases
@@ -410,17 +397,4 @@ extension Notification.Name {
     static let bitcoinURIReceived = Notification.Name("bitcoinURIReceived")
 }
 
-// MARK: - Protocol definitions for use cases
-protocol CreateWalletUseCaseProtocol {
-    func execute(name: String, type: WalletType) async throws -> Wallet
-}
-
-protocol SendBitcoinUseCaseProtocol {
-    func execute(from wallet: Wallet, to address: String, amount: Double) async throws -> Transaction
-}
-
-protocol StorageServiceProtocol {
-    func save<T: Codable>(_ object: T, key: String) throws
-    func load<T: Codable>(_ type: T.Type, key: String) throws -> T?
-    func delete(key: String) throws
-}
+// MARK: - Protocols are now defined in their respective files

@@ -14,8 +14,8 @@ final class CreateWalletUseCase: CreateWalletUseCaseProtocol {
     }
     
     func execute(name: String, type: WalletType) async throws -> Wallet {
-        // Generate mnemonic
-        let mnemonic = try generateMnemonic()
+        // Generate mnemonic (BIP39)
+        let mnemonic = try MnemonicService.shared.generateMnemonic(strength: .words24)
         
         // Save mnemonic to keychain
         try keychainService.saveString(mnemonic, for: "\(Constants.Keychain.walletSeed)_\(name)")
@@ -28,13 +28,5 @@ final class CreateWalletUseCase: CreateWalletUseCaseProtocol {
         return wallet
     }
     
-    private func generateMnemonic() throws -> String {
-        // In a real implementation, use a proper BIP39 library
-        // This is a placeholder
-        let words = [
-            "abandon", "ability", "able", "about", "above", "absent",
-            "absorb", "abstract", "absurd", "abuse", "access", "accident"
-        ]
-        return words.joined(separator: " ")
-    }
+    // Legacy placeholder removed; using MnemonicService instead
 }

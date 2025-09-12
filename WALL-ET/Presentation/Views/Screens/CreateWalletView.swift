@@ -51,13 +51,12 @@ struct CreateWalletView: View {
                     }
                 }
             }
-            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") {
-                    viewModel.errorMessage = nil
-                }
-            } message: {
-                Text(viewModel.errorMessage ?? "")
-            }
+            .alert("Error", isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )) {
+                Button("OK") { viewModel.errorMessage = nil }
+            } message: { Text(viewModel.errorMessage ?? "") }
             .onChange(of: viewModel.createdWallet) { wallet in
                 if wallet != nil && selectedOption == .create {
                     showMnemonicView = true
@@ -93,7 +92,7 @@ struct CreateWalletView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
             
-            // Wallet Type
+            // Network
             VStack(alignment: .leading, spacing: 8) {
                 Text("Network")
                     .font(.caption)
@@ -105,6 +104,7 @@ struct CreateWalletView: View {
                     }
                 }
                 .pickerStyle(SegmentedPickerStyle())
+                .onAppear { if WalletType.allCases.contains(viewModel.walletType) == false { viewModel.walletType = .testnet } }
             }
             
             // Additional Input based on selection
@@ -155,6 +155,11 @@ struct CreateWalletView: View {
             switch selectedOption {
             case .create:
                 await viewModel.createWallet()
+                // Try loading mnemonic from keychain for display
+                let key = "\(Constants.Keychain.walletSeed)_\(viewModel.walletName)"
+                if let m = try? KeychainService().loadString(for: key) {
+                    viewModel.mnemonic = m
+                }
             case .import:
                 await viewModel.importWallet(mnemonic: mnemonicInput)
             case .watchOnly:

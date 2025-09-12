@@ -49,7 +49,7 @@ struct BalanceScreen: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { coordinator.navigate(to: .settings) }) {
+                    Button(action: { coordinator.selectTab(.settings) }) {
                         Image(systemName: "gearshape")
                             .foregroundColor(Color.Wallet.primaryText)
                     }
@@ -82,32 +82,28 @@ struct BalanceScreen: View {
     
     private var quickActionsView: some View {
         HStack(spacing: 16) {
-            QuickActionButton(
-                title: "Send",
-                icon: "arrow.up.circle.fill",
-                color: Color.Wallet.send
-            ) {
-                if let wallet = viewModel.wallets.first {
-                    coordinator.presentModal(.send(wallet: wallet))
-                }
+            Button(action: { coordinator.showSend() }) {
+                QuickActionButton(
+                    icon: "arrow.up.circle.fill",
+                    title: "Send",
+                    color: Color.Wallet.send
+                )
             }
             
-            QuickActionButton(
-                title: "Receive",
-                icon: "arrow.down.circle.fill",
-                color: Color.Wallet.receive
-            ) {
-                if let wallet = viewModel.wallets.first {
-                    coordinator.presentModal(.receive(wallet: wallet))
-                }
+            Button(action: { coordinator.showReceive() }) {
+                QuickActionButton(
+                    icon: "arrow.down.circle.fill",
+                    title: "Receive",
+                    color: Color.Wallet.receive
+                )
             }
             
-            QuickActionButton(
-                title: "Scan",
-                icon: "qrcode.viewfinder",
-                color: Color.Wallet.info
-            ) {
-                // Handle QR scan
+            Button(action: { coordinator.showScanQR() }) {
+                QuickActionButton(
+                    icon: "qrcode.viewfinder",
+                    title: "Scan",
+                    color: Color.Wallet.info
+                )
             }
         }
     }
@@ -121,17 +117,15 @@ struct BalanceScreen: View {
                 
                 Spacer()
                 
-                Button(action: { coordinator.presentModal(.createWallet) }) {
+                Button(action: { coordinator.showCreateWallet() }) {
                     Image(systemName: "plus.circle")
                         .foregroundColor(Color.Wallet.bitcoinOrange)
                 }
             }
             
             ForEach(viewModel.wallets) { wallet in
-                WalletRowView(wallet: wallet, showBalance: viewModel.showBalance)
-                    .onTapGesture {
-                        coordinator.navigate(to: .transactions)
-                    }
+                BalanceWalletRowView(wallet: wallet, showBalance: viewModel.showBalance)
+                    .onTapGesture { coordinator.selectTab(.transactions) }
             }
         }
     }
@@ -157,11 +151,11 @@ struct EmptyWalletView: View {
             
             VStack(spacing: 12) {
                 PrimaryButton(title: "Create New Wallet") {
-                    coordinator.presentModal(.createWallet)
+                    coordinator.showCreateWallet()
                 }
                 
                 SecondaryButton(title: "Import Wallet") {
-                    coordinator.presentModal(.importWallet)
+                    coordinator.showImportWallet()
                 }
             }
             .padding(.horizontal, 40)
@@ -170,7 +164,7 @@ struct EmptyWalletView: View {
     }
 }
 
-struct QuickActionButton: View {
+struct BalanceQuickActionButton: View {
     let title: String
     let icon: String
     let color: Color
@@ -195,7 +189,7 @@ struct QuickActionButton: View {
     }
 }
 
-struct WalletRowView: View {
+struct BalanceWalletRowView: View {
     let wallet: Wallet
     let showBalance: Bool
     
