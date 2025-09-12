@@ -1,0 +1,14 @@
+import Foundation
+import Combine
+
+protocol WalletRepositoryProtocol {
+    func createWallet(name: String, type: WalletType) async throws -> Wallet
+    func importWallet(mnemonic: String, name: String, type: WalletType) async throws -> Wallet
+    func importWatchOnlyWallet(address: String, name: String, type: WalletType) async throws -> Wallet
+    func getAllWallets() async throws -> [Wallet]
+    func getWallet(by id: UUID) async throws -> Wallet?
+    func updateWallet(_ wallet: Wallet) async throws
+    func deleteWallet(by id: UUID) async throws
+    func getBalance(for address: String) async throws -> Balance
+    func getTransactions(for address: String) async throws -> [Transaction]
+}
