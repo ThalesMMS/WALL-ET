@@ -113,8 +113,8 @@ class AppCoordinator: ObservableObject {
         setupDependencies()
         setupNotificationObservers()
         checkForOnboarding()
-        // Ensure Electrum connects early so requests don't hang on first use
-        ElectrumService.shared.connect()
+        // Apply saved Electrum settings and reconnect early (respects SSL off/on and network)
+        ElectrumService.shared.applySavedSettingsAndReconnect()
     }
     
     // MARK: - Dependency Injection Setup

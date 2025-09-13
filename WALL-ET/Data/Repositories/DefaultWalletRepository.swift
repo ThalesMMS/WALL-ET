@@ -159,20 +159,23 @@ extension DefaultWalletRepository {
             }
         }
         var unused = 0
-        var index: Int32 = Int32(persistence.getAddresses(for: entity, isChange: false).map { $0.derivationIndex }.max() ?? 0)
+        var index: Int32 = Int32(persistence.getAddresses(for: entity, isChange: false).map { $0.derivationIndex }.max() ?? -1)
         // Start from current max+1
         index += 1
         while unused < gap {
             guard let addr = deriveAddress(name: name, path: "\(basePath)/0/\(index)", network: net) else { break }
-            // Check history
-            let hasHistory = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-                ElectrumService.shared.getAddressHistory(for: addr) { result in
-                    switch result { case .success(let arr): cont.resume(returning: !arr.isEmpty); case .failure: cont.resume(returning: false) }
-                }
+            // Check history; on failure, stop scanning to avoid drifting indices when offline.
+            let historyResult: Result<[[String: Any]], Error> = await withCheckedContinuation { cont in
+                ElectrumService.shared.getAddressHistory(for: addr) { cont.resume(returning: $0) }
             }
-            _ = persistence.addAddress(to: entity, address: addr, type: "p2wpkh", index: index, isChange: false)
-            unused = hasHistory ? 0 : (unused + 1)
-            index += 1
+            switch historyResult {
+            case .failure:
+                return // abort scanning when offline or error
+            case .success(let arr):
+                _ = persistence.addAddress(to: entity, address: addr, type: "p2wpkh", index: index, isChange: false)
+                unused = arr.isEmpty ? (unused + 1) : 0
+                index += 1
+            }
         }
     }
     

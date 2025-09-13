@@ -3,6 +3,7 @@ import Foundation
 final class TransactionService: TransactionServiceProtocol {
     private let repo = DefaultWalletRepository(keychainService: KeychainService())
     private let electrum = ElectrumService.shared
+    private var didLogOneRawTx = false
     
     func fetchTransactions(page: Int, pageSize: Int) async throws -> [TransactionModel] {
         let all = try await fetchAllTransactions()
@@ -209,9 +210,16 @@ final class TransactionService: TransactionServiceProtocol {
     
     // MARK: - Internals
     private func fetchAllTransactions() async throws -> [TransactionModel] {
+        // Ensure gap-limit discovery so we include addresses that may hold history
+        // Debug: reduce explored addresses to minimize log volume
+        let debugGap = 3
+        if let wallets = try? await WalletService().fetchWallets() {
+            for w in wallets { await repo.ensureGapLimit(for: w.id, gap: debugGap) }
+        }
         let addresses = repo.listAllAddresses()
         guard !addresses.isEmpty else { return [] }
         let owned = Set(addresses)
+        print("[TX] total owned addresses=\(owned.count)")
         // Fetch history per address
         let histories: [[String]] = try await withThrowingTaskGroup(of: [String].self) { group in
             for addr in owned {
@@ -222,12 +230,22 @@ final class TransactionService: TransactionServiceProtocol {
             return res
         }
         let txids = Array(Set(histories.flatMap { $0 }))
+        print("[TX] unique txids total=\(txids.count)")
+        // Debug: log raw JSON for just one txid to avoid huge logs
+        if !didLogOneRawTx, let sample = txids.first {
+            let dict = try? await fetchTxJSON(sample)
+            if let dict = dict, let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]), let json = String(data: data, encoding: .utf8) {
+                print("[TX][RAW TX JSON SAMPLE] txid=\(sample) json=\(json)")
+                didLogOneRawTx = true
+            }
+        }
         // Current height
         let currentHeight = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int, Error>) in
             electrum.getCurrentBlockHeight { result in
                 switch result { case .success(let h): cont.resume(returning: h); case .failure(let e): cont.resume(throwing: e) }
             }
         }
+        print("[TX] current block height=\(currentHeight)")
         // Fetch verbose transactions and build models
         let models: [TransactionModel] = try await withThrowingTaskGroup(of: TransactionModel?.self) { group in
             for txid in txids {
@@ -235,7 +253,9 @@ final class TransactionService: TransactionServiceProtocol {
             }
             var result: [TransactionModel] = []
             for try await m in group { if let m = m { result.append(m) } }
-            return result.sorted { $0.date > $1.date }
+            let sorted = result.sorted { $0.date > $1.date }
+            print("[TX] built models=\(sorted.count)")
+            return sorted
         }
         return models
     }
@@ -246,13 +266,14 @@ final class TransactionService: TransactionServiceProtocol {
                 switch result {
                 case .success(let arr):
                     let ids = arr.compactMap { $0["tx_hash"] as? String }
+                    print("[TX] address=\(address) txids=\(ids.count)")
                     cont.resume(returning: ids)
                 case .failure(let e): cont.resume(throwing: e)
                 }
             }
         }
     }
-    
+
     private func fetchTxJSON(_ txid: String) async throws -> [String: Any] {
         try await withCheckedThrowingContinuation { cont in
             electrum.getTransactionVerbose(txid) { result in
@@ -276,7 +297,16 @@ final class TransactionService: TransactionServiceProtocol {
         let confirmations = height != nil ? max(0, currentHeight - height! + 1) : 0
         let status: TransactionStatus = (height != nil && confirmations >= 6) ? .confirmed : .pending
         
-        // Sum outputs to our addresses
+        // Precompute scriptPubKey hex for owned addresses (P2WPKH / P2PKH)
+        let ownedSpkHex: Set<String> = Set(owned.compactMap { addr in
+            if addr.hasPrefix("bc1") || addr.hasPrefix("tb1") {
+                return BitcoinService().createP2WPKHScript(for: addr)?.hexString
+            } else {
+                return BitcoinService().createP2PKHScript(for: addr)?.hexString
+            }
+        })
+
+        // Sum outputs to our addresses (by address list or by scriptPubKey hex match)
         var toOwnedSats: Int64 = 0
         var firstExternalAddress: String = ""
         if let vouts = json["vout"] as? [[String: Any]] {
@@ -286,15 +316,21 @@ final class TransactionService: TransactionServiceProtocol {
                 if let v = vout["value"] as? Double { valueSats = Int64(v * 100_000_000) }
                 else if let v = vout["value"] as? Int { valueSats = Int64(v) }
                 else { valueSats = 0 }
+                var hitOwned = false
                 var outAddresses: [String] = []
                 if let spk = vout["scriptPubKey"] as? [String: Any] {
                     if let addrs = spk["addresses"] as? [String] { outAddresses = addrs }
-                    if outAddresses.isEmpty, let asm = spk["address"] as? String { outAddresses = [asm] }
+                    if outAddresses.isEmpty, let a = spk["address"] as? String { outAddresses = [a] }
+                    // Prefer robust match via scriptPubKey hex, if provided by server
+                    if let spkHex = spk["hex"] as? String, ownedSpkHex.contains(spkHex.lowercased()) {
+                        hitOwned = true
+                    }
                 }
-                let hitOwned = outAddresses.first(where: { owned.contains($0) })
-                if let _ = hitOwned {
-                    toOwnedSats += valueSats
-                } else if firstExternalAddress.isEmpty, let ext = outAddresses.first { firstExternalAddress = ext }
+                if !hitOwned {
+                    hitOwned = outAddresses.contains(where: { owned.contains($0) })
+                }
+                if hitOwned { toOwnedSats += valueSats }
+                else if firstExternalAddress.isEmpty, let ext = outAddresses.first { firstExternalAddress = ext }
             }
         }
         // Sum inputs from our addresses by inspecting previous outputs
@@ -303,18 +339,24 @@ final class TransactionService: TransactionServiceProtocol {
             for vin in vins {
                 guard let prevTxid = vin["txid"] as? String, let voutIndex = vin["vout"] as? Int else { continue }
                 let prev = try? await fetchTxJSON(prevTxid)
+                if prev == nil { logError("[TX] Failed to fetch parent tx: \(prevTxid) for input index \(voutIndex)") }
                 if let prevVouts = prev?["vout"] as? [[String: Any]], voutIndex < prevVouts.count {
                     let p = prevVouts[voutIndex]
                     let valueSats: Int64
                     if let v = p["value"] as? Double { valueSats = Int64(v * 100_000_000) }
                     else if let v = p["value"] as? Int { valueSats = Int64(v) }
                     else { valueSats = 0 }
-                    var outAddresses: [String] = []
+                    var hitOwned = false
                     if let spk = p["scriptPubKey"] as? [String: Any] {
-                        if let addrs = spk["addresses"] as? [String] { outAddresses = addrs }
-                        if outAddresses.isEmpty, let a = spk["address"] as? String { outAddresses = [a] }
+                        if let spkHex = spk["hex"] as? String, ownedSpkHex.contains(spkHex.lowercased()) {
+                            hitOwned = true
+                        }
+                        if !hitOwned {
+                            let addrs = (spk["addresses"] as? [String]) ?? ((spk["address"] as? String).map { [$0] } ?? [])
+                            hitOwned = addrs.contains(where: { owned.contains($0) })
+                        }
                     }
-                    if outAddresses.contains(where: { owned.contains($0) }) {
+                    if hitOwned {
                         fromOwnedSats += valueSats
                     }
                 }

@@ -34,6 +34,8 @@ class ElectrumService: NSObject {
     let transactionUpdatePublisher = PassthroughSubject<TransactionUpdate, Never>()
     let blockHeightPublisher = PassthroughSubject<Int, Never>()
     let addressStatusPublisher = PassthroughSubject<AddressStatusUpdate, Never>()
+    // Debug: log raw JSON for only one transaction to avoid huge logs
+    private var didLogOneRawTx = false
     
     // Configuration
     private var currentServer: ElectrumServer
@@ -116,6 +118,21 @@ class ElectrumService: NSObject {
     var currentNetwork: BitcoinService.Network { network }
     
     // MARK: - Connection Management
+    func applySavedSettingsAndReconnect() {
+        let defaults = UserDefaults.standard
+        let host = defaults.string(forKey: "electrum_host") ?? "electrum.blockstream.info"
+        var port = defaults.object(forKey: "electrum_port") as? Int ?? 50001
+        // Default SSL OFF for initial configuration
+        let useSSL = defaults.object(forKey: "electrum_ssl") as? Bool ?? false
+        let netStr = defaults.string(forKey: "network_type") ?? "mainnet"
+        let net: BitcoinService.Network = (netStr == "testnet") ? .testnet : .mainnet
+        if host == "electrum.blockstream.info" && !useSSL {
+            port = (net == .mainnet) ? 50001 : 60001
+        }
+        updateServer(host: host, port: port, useSSL: useSSL, network: net)
+        disconnect()
+        connect()
+    }
     func connect() {
         connectionStatePublisher.send(.connecting)
         
@@ -486,6 +503,7 @@ class ElectrumService: NSObject {
     
     func getAddressHistory(for address: String, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
         let scripthash = addressToScripthash(address)
+        print("[Electrum] get_history address=\(address) scripthash=\(scripthash)")
         let id = nextRequestId()
         
         let request: [String: Any] = [
@@ -509,11 +527,14 @@ class ElectrumService: NSObject {
             switch result {
             case .success(let value):
                 if let history = value as? [[String: Any]] {
+                    print("[Electrum] history count for \(address): \(history.count)")
                     self.deliverOnMain(.success(history), to: completion)
                 } else {
+                    print("[Electrum] invalid history response for \(address): \(value)")
                     self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion)
                 }
             case .failure(let error):
+                print("[Electrum] history error for \(address): \(error)")
                 self.deliverOnMain(.failure(error), to: completion)
             }
         }
@@ -619,14 +640,25 @@ class ElectrumService: NSObject {
             switch result {
             case .success(let value):
                 if let dict = value as? [String: Any] {
+                    // Log a compact summary of the verbose tx JSON
+                    let vinC = (dict["vin"] as? [Any])?.count ?? 0
+                    let voutC = (dict["vout"] as? [Any])?.count ?? 0
+                    let bh = (dict["blockheight"] as? Int) ?? (dict["height"] as? Int) ?? -1
+                    print("[Electrum] tx verbose: txid=\(txid) vin=\(vinC) vout=\(voutC) blockheight=\(bh)")
                     self.deliverOnMain(.success(dict), to: completion)
                 } else if let str = value as? String, let d = str.data(using: .utf8),
                           let dict = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
+                    let vinC = (dict["vin"] as? [Any])?.count ?? 0
+                    let voutC = (dict["vout"] as? [Any])?.count ?? 0
+                    let bh = (dict["blockheight"] as? Int) ?? (dict["height"] as? Int) ?? -1
+                    print("[Electrum] tx verbose(hex->json): txid=\(txid) vin=\(vinC) vout=\(voutC) blockheight=\(bh)")
                     self.deliverOnMain(.success(dict), to: completion)
                 } else {
+                    print("[Electrum] invalid tx verbose for txid=\(txid): \(value)")
                     self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion)
                 }
             case .failure(let error):
+                print("[Electrum] tx verbose error for txid=\(txid): \(error)")
                 self.deliverOnMain(.failure(error), to: completion)
             }
         }
@@ -973,6 +1005,23 @@ private extension ElectrumService {
             return Array(diff)
         }()
         guard !newIds.isEmpty else { return }
+        // Debug: log raw JSON for only one txid across the app lifetime
+        if !didLogOneRawTx, let sampleTxid = newIds.first {
+            getTransactionVerbose(sampleTxid) { result in
+                switch result {
+                case .success(let dict):
+                    if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]),
+                       let json = String(data: data, encoding: .utf8) {
+                        print("[Electrum][RAW TX JSON SAMPLE] txid=\(sampleTxid) json=\(json)")
+                    } else {
+                        print("[Electrum][RAW TX JSON SAMPLE] txid=\(sampleTxid) (failed to serialize)")
+                    }
+                case .failure(let err):
+                    print("[Electrum][RAW TX JSON SAMPLE] txid=\(sampleTxid) error=\(err)")
+                }
+            }
+            didLogOneRawTx = true
+        }
         // For each new tx, fetch verbose to get blockheight and publish
         for txid in newIds {
             getTransactionVerbose(txid) { result in

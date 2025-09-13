@@ -525,8 +525,8 @@ struct BackupView: View {
 struct NetworkSettingsView: View {
     @AppStorage("network_type") private var networkType = "mainnet"
     @AppStorage("electrum_host") private var host = "electrum.blockstream.info"
-    @AppStorage("electrum_port") private var port: Int = 50002
-    @AppStorage("electrum_ssl") private var useSSL: Bool = true
+    @AppStorage("electrum_port") private var port: Int = 50001
+    @AppStorage("electrum_ssl") private var useSSL: Bool = false
     @AppStorage("gap_limit") private var gapLimit: Int = 20
     @AppStorage("auto_rotate_receive") private var autoRotate: Bool = true
     @State private var reconnecting = false
@@ -541,11 +541,12 @@ struct NetworkSettingsView: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .onChange(of: networkType) { val in
-                    // Adjust default port when switching networks if using default host
+                    // Adjust default TCP port when switching networks if using default host
                     if host == "electrum.blockstream.info" {
-                        port = (val == "mainnet") ? 50002 : 60002
+                        // TCP defaults: 50001 mainnet, 60001 testnet
+                        port = (val == "mainnet") ? 50001 : 60001
                         portText = String(port)
-                        useSSL = true
+                        useSSL = false
                     }
                 }
             } header: {

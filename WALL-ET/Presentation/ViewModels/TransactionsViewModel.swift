@@ -34,7 +34,24 @@ class TransactionsViewModel: ObservableObject {
     init(transactionService: TransactionServiceProtocol = TransactionService()) {
         self.transactionService = transactionService
         setupBindings()
+        // Wait for Electrum connectivity; still attempt an initial load (will no-op if empty)
         loadTransactions()
+        ElectrumService.shared.connectionStatePublisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] state in
+                guard let self = self else { return }
+                switch state {
+                case .connected:
+                    // Refetch when connection becomes ready
+                    self.refresh()
+                case .failed, .disconnected:
+                    // Stop spinner if we were waiting endlessly
+                    self.isLoading = false
+                default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Setup
