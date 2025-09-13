@@ -387,26 +387,50 @@ struct ImportWalletView: View {
     }
 
     private func importWallet() {
-        let phrase = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !phrase.isEmpty else { return }
+        let raw = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return }
+        // Normalize per BIP39 (NFKD + collapse whitespace) and log
+        let normalized = raw
+            .decomposedStringWithCompatibilityMapping
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let rawWords = raw.split(whereSeparator: { $0.isWhitespace }).count
+        let normWords = normalized.split(separator: " ").count
+        logInfo("[Settings] Import seed: rawWordCount=\(rawWords), normalizedWordCount=\(normWords)")
+        logInfo("[Settings] Interpreted mnemonic (redacted): \(redactMnemonic(normalized))")
         isImporting = true
         Task { @MainActor in
             do {
-                let valid = try MnemonicService.shared.validateMnemonic(phrase)
-                guard valid else { errorMessage = "Invalid recovery phrase"; isImporting = false; return }
+                let valid = try MnemonicService.shared.validateMnemonic(normalized)
+                guard valid else {
+                    logWarning("[Settings] Mnemonic validation returned false")
+                    errorMessage = "Invalid recovery phrase"; isImporting = false; return
+                }
                 let type: WalletType = (networkType == "mainnet") ? .bitcoin : .testnet
                 if let repo: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
-                    let _ = try await repo.importWallet(mnemonic: phrase, name: walletName, type: type)
+                    let wallet = try await repo.importWallet(mnemonic: normalized, name: walletName, type: type)
+                    if let addr = wallet.accounts.first?.address { logInfo("[Settings] Imported wallet first address: \(addr)") }
                     dismiss()
                 } else {
                     errorMessage = "Repository unavailable"
                 }
             } catch {
+                logError("[Settings] Mnemonic validation/import failed: \(error.localizedDescription)")
                 errorMessage = error.localizedDescription
             }
             isImporting = false
         }
     }
+}
+
+// Redaction helper for logging mnemonics
+private func redactMnemonic(_ phrase: String) -> String {
+    let ws = phrase.split(separator: " ")
+    if ws.count <= 6 { return phrase }
+    let head = ws.prefix(3).joined(separator: " ")
+    let tail = ws.suffix(3).joined(separator: " ")
+    return "\(head) … \(tail)"
 }
 
 struct ChangePasswordView: View {

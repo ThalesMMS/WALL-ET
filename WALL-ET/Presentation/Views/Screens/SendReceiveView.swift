@@ -500,30 +500,50 @@ struct ReceiveView: View {
 
     private func refreshReceiveAddress() {
         Task { @MainActor in
+            // Optimistic: show primary immediately if available, then try to rotate to next
+            if walletAddress.isEmpty {
+                if let active = await WalletService().getActiveWallet() {
+                    if !active.address.isEmpty {
+                        walletAddress = active.address
+                        logInfo("[Receive] Optimistic primary address: \(active.address)")
+                    }
+                } else if let first = try? await WalletService().fetchWallets().first, !first.address.isEmpty {
+                    walletAddress = first.address
+                    logInfo("[Receive] Optimistic first wallet address: \(first.address)")
+                }
+            }
             if let selected = coordinator.selectedWallet {
                 if let next = await WalletService().getNextReceiveAddress(for: selected.id, gap: gapLimit) {
+                    logInfo("[Receive] Selected wallet next address: \(next)")
                     walletAddress = next
                     ElectrumService.shared.subscribeToAddress(next)
                     return
                 }
+                logInfo("[Receive] Selected wallet has no next address; using primary: \(selected.address)")
                 walletAddress = selected.address
                 ElectrumService.shared.subscribeToAddress(selected.address)
             } else if let active = await WalletService().getActiveWallet() {
                 if let next = await WalletService().getNextReceiveAddress(for: active.id, gap: gapLimit) {
+                    logInfo("[Receive] Active wallet next address: \(next)")
                     walletAddress = next
                     ElectrumService.shared.subscribeToAddress(next)
                     return
                 }
+                logInfo("[Receive] Active wallet has no next address; using primary: \(active.address)")
                 walletAddress = active.address
                 ElectrumService.shared.subscribeToAddress(active.address)
             } else if let first = try? await WalletService().fetchWallets().first {
                 if let next = await WalletService().getNextReceiveAddress(for: first.id, gap: gapLimit) {
+                    logInfo("[Receive] First wallet next address: \(next)")
                     walletAddress = next
                     ElectrumService.shared.subscribeToAddress(next)
                 } else {
+                    logInfo("[Receive] First wallet has no next address; using primary: \(first.address)")
                     walletAddress = first.address
                     ElectrumService.shared.subscribeToAddress(first.address)
                 }
+            } else {
+                logWarning("[Receive] No wallets available to derive address")
             }
         }
     }

@@ -3,18 +3,15 @@ import CryptoKit
 
 extension String {
     var isValidBitcoinAddress: Bool {
-        // Basic Bitcoin address validation (P2PKH, P2SH, Bech32)
-        let p2pkhRegex = "^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$"
-        let p2shRegex = "^3[a-km-zA-HJ-NP-Z1-9]{25,34}$"
-        let bech32Regex = "^bc1[a-z0-9]{39,59}$"
-        
-        let p2pkhPredicate = NSPredicate(format: "SELF MATCHES %@", p2pkhRegex)
-        let p2shPredicate = NSPredicate(format: "SELF MATCHES %@", p2shRegex)
-        let bech32Predicate = NSPredicate(format: "SELF MATCHES %@", bech32Regex)
-        
-        return p2pkhPredicate.evaluate(with: self) ||
-               p2shPredicate.evaluate(with: self) ||
-               bech32Predicate.evaluate(with: self)
+        // Accept mainnet/testnet/regtest (Base58 + Bech32)
+        // Base58 P2PKH/P2SH (mainnet)
+        let p2_main = "^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$"
+        // Base58 P2PKH (testnet 'm' or 'n') and P2SH (testnet '2')
+        let p2_test = "^[mn2][a-km-zA-HJ-NP-Z1-9]{25,34}$"
+        // Bech32: bc1 (main), tb1 (testnet), bcrt1 (regtest)
+        let bech32 = "^(bc|tb|bcrt)1[0-9a-z]{6,87}$"
+        let predicate = NSPredicate(format: "SELF MATCHES[c] %@ OR SELF MATCHES[c] %@ OR SELF MATCHES[c] %@", p2_main, p2_test, bech32)
+        return predicate.evaluate(with: self)
     }
     
     func sha256() -> String {

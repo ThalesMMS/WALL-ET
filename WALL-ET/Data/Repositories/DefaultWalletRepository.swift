@@ -17,11 +17,13 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
         guard let mnemonic = try keychain.loadString(for: key) else {
             throw NSError(domain: "DefaultWalletRepository", code: -1, userInfo: [NSLocalizedDescriptionKey: "Mnemonic not found"])
         }
+        logInfo("Creating wallet from stored mnemonic (redacted): \(redactMnemonic(mnemonic))")
         let seed = MnemonicService.shared.mnemonicToSeed(mnemonic)
         let network: BitcoinService.Network = (type == .testnet) ? .testnet : .mainnet
         let coin = (type == .testnet) ? 1 : 0
         let path = "m/84'/\(coin)'/0'/0/0"
         let (priv, address) = MnemonicService.shared.deriveAddress(from: seed, path: path, network: network)
+        logInfo("Derived first address at \(path) [\(type == .testnet ? "testnet" : "mainnet")]: \(address)")
 
         // Persist secret
         try keychain.save(priv, for: "wallet_\(name)_priv_0")
@@ -56,7 +58,9 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
         let entities = persistence.getAllWallets()
         return entities.map { entity in
             let addresses = persistence.getAddresses(for: entity, isChange: false)
+            let count = addresses.count
             let first = addresses.first?.address ?? ""
+            logInfo("[Repo] getAllWallets: entity=\(entity.name ?? "Wallet"), externalCount=\(count), first=\(first.isEmpty ? "<empty>" : first)")
             let account = Account(index: 0, address: first, publicKey: "")
             let type: WalletType = (entity.network == "mainnet") ? .bitcoin : .testnet
             return Wallet(id: entity.id ?? UUID(), name: entity.name ?? "Wallet", type: type, accounts: [account], isWatchOnly: false)
@@ -100,6 +104,15 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
 
 private extension Data {
     func toHexString() -> String { map { String(format: "%02x", $0) }.joined() }
+}
+
+// MARK: - Redaction helper for logging
+private func redactMnemonic(_ phrase: String) -> String {
+    let ws = phrase.split(separator: " ")
+    if ws.count <= 6 { return phrase }
+    let head = ws.prefix(3).joined(separator: " ")
+    let tail = ws.suffix(3).joined(separator: " ")
+    return "\(head) … \(tail)"
 }
 
 // MARK: - Address listing helpers
@@ -167,6 +180,7 @@ extension DefaultWalletRepository {
         guard let mnemonic = try? keychain.loadString(for: "\(Constants.Keychain.walletSeed)_\(name)") else { return nil }
         let seed = MnemonicService.shared.mnemonicToSeed(mnemonic)
         let (_, address) = MnemonicService.shared.deriveAddress(from: seed, path: path, network: network)
+        logInfo("Derived address at path \(path) [\(network == .mainnet ? "mainnet" : "testnet")]: \(address)")
         return address
     }
 

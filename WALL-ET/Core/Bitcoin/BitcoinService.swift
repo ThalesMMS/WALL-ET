@@ -221,13 +221,7 @@ class BitcoinService {
         return CryptoService.shared.sha256(data)
     }
     
-    private func ripemd160(_ data: Data) -> Data {
-        var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
-        data.withUnsafeBytes { bytes in
-            _ = CC_MD5(bytes.baseAddress, CC_LONG(data.count), &digest)
-        }
-        return Data(digest)
-    }
+    private func ripemd160(_ data: Data) -> Data { RIPEMD160.hash(data) }
 }
 
 // MARK: - Base58 Encoding/Decoding

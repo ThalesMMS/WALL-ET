@@ -50,20 +50,37 @@ class MnemonicService {
     }
     
     private static func loadWordList() -> [String] {
-        // Load complete BIP39 English word list (2048 words)
-        guard let url = Bundle.main.url(forResource: "english", withExtension: "txt", subdirectory: "Resources/BIP39"),
-              let wordString = try? String(contentsOf: url) else {
-            // Fallback to embedded list if file not found
-            return loadEmbeddedWordList()
+        // Attempt to load BIP39 English word list (2048 words) from bundle.
+        if let url = Bundle.main.url(forResource: "english", withExtension: "txt", subdirectory: "Resources/BIP39"),
+           let wordString = try? String(contentsOf: url) {
+            let words = wordString.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            // Validate count and fallback if incorrect.
+            if words.count == 2048 { return words }
+            logWarning("BIP39 wordlist from bundle has \(words.count) entries; falling back to embedded list")
         }
-        
-        return wordString.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        // Fallback to embedded list
+        let embedded = loadEmbeddedWordList()
+        if embedded.count != 2048 {
+            logError("Embedded BIP39 wordlist has \(embedded.count) entries; validation may fail")
+        }
+        return embedded
     }
     
     private static func loadEmbeddedWordList() -> [String] {
-        // Load from embedded string as fallback
-        let wordListString = completeBIP39EnglishWordList
-        return wordListString.components(separatedBy: "\n").filter { !$0.isEmpty }
+        // Load from embedded string as fallback and sanitize
+        let raw = completeBIP39EnglishWordList
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        // If the embedded list is known to contain stray items (e.g., "drown", "rush"), remove them.
+        var words = raw
+        if words.count != 2048 {
+            let extras: Set<String> = ["drown", "rush"]
+            words = words.filter { !extras.contains($0) }
+        }
+        // Final sanity log if still not 2048
+        if words.count != 2048 { logError("Embedded BIP39 wordlist has \(words.count) entries; expected 2048") }
+        return words
     }
     
     // MARK: - Mnemonic Generation
@@ -145,25 +162,25 @@ class MnemonicService {
         let entropyBinary = String(binaryString.prefix(totalBits - checksumBits))
         let checksumBinary = String(binaryString.suffix(checksumBits))
         
-        // Convert entropy to data
+        // Convert entropy to data (8 bits per byte, sem padding à direita)
         var entropyData = Data()
-        for i in stride(from: 0, to: entropyBinary.count, by: 8) {
-            let startIndex = entropyBinary.index(entropyBinary.startIndex, offsetBy: i)
-            let endIndex = entropyBinary.index(startIndex, offsetBy: min(8, entropyBinary.count - i))
-            let byte = String(entropyBinary[startIndex..<endIndex])
-            if let value = UInt8(byte.padRight(toLength: 8, withPad: "0"), radix: 2) {
-                entropyData.append(value)
-            }
+        var tempEntropy = entropyBinary
+        while !tempEntropy.isEmpty {
+            let chunk = String(tempEntropy.prefix(8))
+            tempEntropy = String(tempEntropy.dropFirst(min(8, tempEntropy.count)))
+            guard let byte = UInt8(chunk, radix: 2) else { throw MnemonicError.invalidEntropy }
+            entropyData.append(byte)
         }
-        
-        // Calculate expected checksum
-        let hash = SHA256.hash(data: entropyData).data
-        let expectedChecksumByte: UInt8 = hash.first ?? 0
-        let expectedChecksum = Int(expectedChecksumByte) >> (8 - checksumBits)
-        let expectedChecksumBinary = String(expectedChecksum, radix: 2).padLeft(toLength: checksumBits, withPad: "0")
+        // Calcular checksum esperado a partir dos primeiros 'checksumBits' do SHA256 completo (simétrico à geração)
+        let hashBits = SHA256.hash(data: entropyData).data
+            .map { String($0, radix: 2).padLeft(toLength: 8, withPad: "0") }
+            .joined()
+        let expectedChecksumBinary = String(hashBits.prefix(checksumBits))
         
         // Verify checksum
         guard checksumBinary == expectedChecksumBinary else {
+            let sample = indices.prefix(8).map { String($0) }.joined(separator: ",")
+            logWarning("Mnemonic checksum mismatch: expected=\(expectedChecksumBinary), got=\(checksumBinary), words=\(words.count), indices[0..7]=[\(sample)]")
             throw MnemonicError.invalidChecksum
         }
         
@@ -217,9 +234,14 @@ class MnemonicService {
             data.append(publicKey)
         }
         
-        // Append index as big-endian
-        var indexBytes = actualIndex.bigEndian
-        data.append(Data(bytes: &indexBytes, count: 4))
+        // Append index as 4-byte big-endian (explicit)
+        let beIndex: [UInt8] = [
+            UInt8((actualIndex >> 24) & 0xff),
+            UInt8((actualIndex >> 16) & 0xff),
+            UInt8((actualIndex >> 8) & 0xff),
+            UInt8(actualIndex & 0xff)
+        ]
+        data.append(contentsOf: beIndex)
         
         // Calculate HMAC
         let hmac = HMAC<SHA512>.authenticationCode(for: data, using: SymmetricKey(data: parent.chainCode))

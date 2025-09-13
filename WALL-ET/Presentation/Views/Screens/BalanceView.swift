@@ -228,6 +228,10 @@ struct BalanceWalletRowView: View {
         .padding()
         .background(Color.Wallet.secondaryBackground)
         .cornerRadius(Constants.UI.cornerRadius)
+        .onAppear {
+            let addr = wallet.accounts.first?.address ?? ""
+            logInfo("Wallet row appear: name=\(wallet.name), firstAddress=\(addr.isEmpty ? "<empty>" : addr)")
+        }
     }
 }
 

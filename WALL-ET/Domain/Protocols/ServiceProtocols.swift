@@ -4,7 +4,7 @@ import Foundation
 protocol WalletServiceProtocol {
     func fetchWallets() async throws -> [WalletModel]
     func createWallet(name: String, type: WalletType) async throws -> WalletModel
-    func importWallet(seedPhrase: String, name: String) async throws -> WalletModel
+    func importWallet(seedPhrase: String, name: String, type: WalletType) async throws -> WalletModel
     func deleteWallet(_ walletId: UUID) async throws
     func getAvailableBalance() async throws -> Double
     func getWalletDetails(_ walletId: UUID) async throws -> WalletModel

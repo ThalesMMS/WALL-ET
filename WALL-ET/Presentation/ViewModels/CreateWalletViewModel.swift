@@ -57,9 +57,19 @@ final class CreateWalletViewModel: ObservableObject {
             errorMessage = "Please enter a recovery phrase"
             return
         }
+        // Log what we will interpret from the seed phrase (normalized form)
+        let trimmed = mnemonic.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed
+            .decomposedStringWithCompatibilityMapping
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let words = normalized.split(separator: " ")
+        logInfo("Import seed: rawWordCount=\(trimmed.split(whereSeparator: { $0.isWhitespace }).count), normalizedWordCount=\(words.count)")
+        logInfo("Interpreted mnemonic (redacted): \(redactMnemonic(normalized))")
         // Validate mnemonic using BIP39 word list and checksum
         do {
-            let valid = try MnemonicService.shared.validateMnemonic(mnemonic)
+            let valid = try MnemonicService.shared.validateMnemonic(normalized)
             if !valid {
                 errorMessage = "Invalid recovery phrase"
                 return
@@ -88,11 +98,16 @@ final class CreateWalletViewModel: ObservableObject {
         
         do {
             let wallet = try await walletRepository.importWallet(
-                mnemonic: mnemonic,
+                mnemonic: normalized,
                 name: walletName,
                 type: walletType
             )
             createdWallet = wallet
+            if let addr = wallet.accounts.first?.address {
+                logInfo("Imported wallet first address: \(addr)")
+            } else {
+                logWarning("Imported wallet has no first address")
+            }
             logInfo("Wallet imported successfully: \(wallet.name)")
         } catch {
             errorMessage = error.localizedDescription
@@ -140,4 +155,13 @@ final class CreateWalletViewModel: ObservableObject {
         ]
         return words.joined(separator: " ")
     }
+}
+
+// MARK: - Redaction helper for mnemonic logging
+private func redactMnemonic(_ phrase: String) -> String {
+    let ws = phrase.split(separator: " ")
+    if ws.count <= 6 { return phrase }
+    let head = ws.prefix(3).joined(separator: " ")
+    let tail = ws.suffix(3).joined(separator: " ")
+    return "\(head) … \(tail)"
 }

@@ -99,12 +99,10 @@ struct RIPEMD160 {
             var ar = h0, br = h1, cr = h2, dr = h3, er = h4
 
             for j in 0..<80 {
-                let jl = j
-                let jr = 79 - j
-                let tl = rol(al &+ f(jl, bl, cl, dl) &+ X[r[jl % 16]] &+ K(jl), s[jl]) &+ el
+                let tl = rol(al &+ f(j, bl, cl, dl) &+ X[r[j]] &+ K(j), s[j]) &+ el
                 al = el; el = dl; dl = rol(cl, 10); cl = bl; bl = tl
 
-                let tr = rol(ar &+ f(jr, br, cr, dr) &+ X[rp[jr % 16]] &+ Kp(jr), sp[jr]) &+ er
+                let tr = rol(ar &+ f(79 - j, br, cr, dr) &+ X[rp[j]] &+ Kp(j), sp[j]) &+ er
                 ar = er; er = dr; dr = rol(cr, 10); cr = br; br = tr
             }
 
@@ -124,4 +122,3 @@ struct RIPEMD160 {
         return digest
     }
 }
-

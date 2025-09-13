@@ -36,8 +36,8 @@ final class WalletService: WalletServiceProtocol {
         )
     }
 
-    func importWallet(seedPhrase: String, name: String) async throws -> WalletModel {
-        let w = try await repo.importWallet(mnemonic: seedPhrase, name: name, type: .testnet)
+    func importWallet(seedPhrase: String, name: String, type: WalletType) async throws -> WalletModel {
+        let w = try await repo.importWallet(mnemonic: seedPhrase, name: name, type: type)
         let address = w.accounts.first?.address ?? ""
         return WalletModel(
             id: w.id,
