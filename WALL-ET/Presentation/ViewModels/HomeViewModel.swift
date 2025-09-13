@@ -24,12 +24,12 @@ class HomeViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
-    init(walletService: WalletServiceProtocol = WalletService(),
-         priceService: PriceServiceProtocol = PriceService(),
-         transactionService: TransactionServiceProtocol = TransactionService()) {
-        self.walletService = walletService
-        self.priceService = priceService
-        self.transactionService = transactionService
+    init(walletService: WalletServiceProtocol? = nil,
+         priceService: PriceServiceProtocol? = nil,
+         transactionService: TransactionServiceProtocol? = nil) {
+        self.walletService = walletService ?? WalletService()
+        self.priceService = priceService ?? PriceService()
+        self.transactionService = transactionService ?? TransactionService()
         
         setupBindings()
         loadData()

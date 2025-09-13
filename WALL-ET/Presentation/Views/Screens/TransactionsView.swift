@@ -13,43 +13,55 @@ struct TransactionsView: View {
         NavigationView {
             List {
                 Section { filterBar }
-                if wallets.isEmpty && !isLoadingWallets {
+
+                // Sempre renderiza a lista de transações quando houver dados
+                ForEach(txvm.groupedTransactions(), id: \.0) { section in
+                    Section(section.0) {
+                        ForEach(section.1, id: \.id) { model in
+                            TransactionListItem(transaction: toItem(model))
+                                .onAppear { txvm.loadMoreIfNeeded(currentItem: model) }
+                        }
+                    }
+                }
+
+                // Spinner
+                if txvm.isLoading {
+                    Section { ProgressView("Loading…") }
+                }
+
+                // Empty state guiado pelos dados
+                if !txvm.isLoading && txvm.filteredTransactions.isEmpty {
                     Section {
                         VStack(spacing: 16) {
                             Image(systemName: "clock.arrow.circlepath").font(.system(size: 40)).foregroundColor(.secondary)
-                            Text("No transactions yet").font(.headline)
-                            Text("Create or import a wallet to see history.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            HStack(spacing: 12) {
-                                Button(action: { showCreateSheet = true }) { Text("Create Wallet").frame(maxWidth: .infinity) }
-                                .buttonStyle(.borderedProminent).tint(.orange)
-                                Button(action: { showImportSheet = true }) { Text("Import Wallet").frame(maxWidth: .infinity) }
-                                .buttonStyle(.bordered)
+                            Text(wallets.isEmpty ? "No transactions yet" : "No transactions match your filters")
+                                .font(.headline)
+                            if wallets.isEmpty && !isLoadingWallets {
+                                Text("Create or import a wallet to see history.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                HStack(spacing: 12) {
+                                    Button(action: { showCreateSheet = true }) { Text("Create Wallet").frame(maxWidth: .infinity) }
+                                        .buttonStyle(.borderedProminent).tint(.orange)
+                                    Button(action: { showImportSheet = true }) { Text("Import Wallet").frame(maxWidth: .infinity) }
+                                        .buttonStyle(.bordered)
+                                }
+                                .padding(.horizontal)
                             }
-                            .padding(.horizontal)
                         }
                         .frame(maxWidth: .infinity)
-                    }
-                } else {
-                    ForEach(txvm.groupedTransactions(), id: \.0) { section in
-                        Section(section.0) {
-                            ForEach(section.1, id: \.id) { model in
-                                TransactionListItem(transaction: toItem(model))
-                                    .onAppear { txvm.loadMoreIfNeeded(currentItem: model) }
-                            }
-                        }
-                    }
-                    if txvm.isLoading {
-                        Section { ProgressView("Loading…") }
                     }
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Transactions")
-            .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button(action: {}) { Image(systemName: "arrow.down.doc") } } }
             .searchable(text: $txvm.searchText, prompt: "Search transactions")
-            .onAppear { loadWallets() }
+            .onAppear {
+                // manter o carregamento de wallets (para exibir CTAs)
+                loadWallets()
+                // atualização rápida ao entrar
+                if txvm.transactions.isEmpty { txvm.refresh() }
+            }
             .sheet(isPresented: $showCreateSheet, onDismiss: { loadWallets() }) { CreateWalletView() }
             .sheet(isPresented: $showImportSheet, onDismiss: { loadWallets() }) { ImportWalletView() }
         }
@@ -272,11 +284,10 @@ struct TransactionDetailView: View {
                         DetailRow(label: "Type", value: transaction.type == .received ? "Received" : "Sent")
                         DetailRow(label: "Date", value: formatFullDate(transaction.date))
                         DetailRow(label: "Address", value: transaction.address, copyable: true)
-                        DetailRow(label: "Transaction ID", value: "f4184fc596403b9d638783cf57adfe4c75c605f6", copyable: true)
+                        DetailRow(label: "Transaction ID", value: transaction.id, copyable: true)
                         DetailRow(label: "Network Fee", value: String(format: "%.8f BTC", transaction.fee))
                         if transaction.status == .confirmed {
                             DetailRow(label: "Confirmations", value: "\(transaction.confirmations)")
-                            DetailRow(label: "Block", value: "808,185")
                         }
                     }
                     .padding()

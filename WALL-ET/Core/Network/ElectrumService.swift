@@ -217,7 +217,21 @@ class ElectrumService: NSObject {
             case .success(let value):
                 if let typedValue = value as? T {
                     self.deliverOnMain(.success(typedValue), to: completion)
-                } else if let data = try? JSONSerialization.data(withJSONObject: value),
+                } else if let dict = value as? [String: Any] {
+                    if let data = try? JSONSerialization.data(withJSONObject: dict),
+                       let decoded = try? JSONDecoder().decode(T.self, from: data) {
+                        self.deliverOnMain(.success(decoded), to: completion)
+                    } else {
+                        self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion)
+                    }
+                } else if let arr = value as? [Any] {
+                    if let data = try? JSONSerialization.data(withJSONObject: arr),
+                       let decoded = try? JSONDecoder().decode(T.self, from: data) {
+                        self.deliverOnMain(.success(decoded), to: completion)
+                    } else {
+                        self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion)
+                    }
+                } else if let str = value as? String, let data = str.data(using: .utf8),
                           let decoded = try? JSONDecoder().decode(T.self, from: data) {
                     self.deliverOnMain(.success(decoded), to: completion)
                 } else {
@@ -502,6 +516,7 @@ class ElectrumService: NSObject {
     }
     
     func getAddressHistory(for address: String, completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
+        ensureConnected()
         let scripthash = addressToScripthash(address)
         print("[Electrum] get_history address=\(address) scripthash=\(scripthash)")
         let id = nextRequestId()
@@ -523,7 +538,7 @@ class ElectrumService: NSObject {
         let data = message.data(using: .utf8)!
         
         requestsLock.lock()
-        pendingRequests[id] = RequestHandler(method: "blockchain.scripthash.get_history") { result in
+        let handler = RequestHandler(method: "blockchain.scripthash.get_history") { result in
             switch result {
             case .success(let value):
                 if let history = value as? [[String: Any]] {
@@ -538,19 +553,32 @@ class ElectrumService: NSObject {
                 self.deliverOnMain(.failure(error), to: completion)
             }
         }
+        // Add timeout like sendRequest
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.requestsLock.lock()
+            let timedOut = self.pendingRequests.removeValue(forKey: id)
+            self.requestsLock.unlock()
+            timedOut?.completion(.failure(ElectrumError.timeout))
+        }
+        handler.timeoutWorkItem = work
+        pendingRequests[id] = handler
         requestsLock.unlock()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 12, execute: work)
         
         connection?.send(content: data, completion: .contentProcessed { error in
             if let error = error {
                 self.requestsLock.lock()
                 let handler = self.pendingRequests.removeValue(forKey: id)
                 self.requestsLock.unlock()
+                handler?.timeoutWorkItem?.cancel()
                 handler?.completion(.failure(error))
             }
         })
     }
     
     func getUTXOs(for address: String, completion: @escaping (Result<[ElectrumUTXO], Error>) -> Void) {
+        ensureConnected()
         let scripthash = addressToScripthash(address)
         let id = nextRequestId()
         
@@ -571,7 +599,7 @@ class ElectrumService: NSObject {
         let data = message.data(using: .utf8)!
         
         requestsLock.lock()
-        pendingRequests[id] = RequestHandler(method: "blockchain.scripthash.listunspent") { result in
+        let handler = RequestHandler(method: "blockchain.scripthash.listunspent") { result in
             switch result {
             case .success(let value):
                 if let utxos = value as? [[String: Any]] {
@@ -599,13 +627,24 @@ class ElectrumService: NSObject {
                 self.deliverOnMain(.failure(error), to: completion)
             }
         }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.requestsLock.lock()
+            let timedOut = self.pendingRequests.removeValue(forKey: id)
+            self.requestsLock.unlock()
+            timedOut?.completion(.failure(ElectrumError.timeout))
+        }
+        handler.timeoutWorkItem = work
+        pendingRequests[id] = handler
         requestsLock.unlock()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 12, execute: work)
         
         connection?.send(content: data, completion: .contentProcessed { error in
             if let error = error {
                 self.requestsLock.lock()
                 let handler = self.pendingRequests.removeValue(forKey: id)
                 self.requestsLock.unlock()
+                handler?.timeoutWorkItem?.cancel()
                 handler?.completion(.failure(error))
             }
         })
@@ -621,6 +660,7 @@ class ElectrumService: NSObject {
     }
     
     func getTransactionVerbose(_ txid: String, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+        ensureConnected()
         let id = nextRequestId()
         let request: [String: Any] = [
             "jsonrpc": "2.0",
@@ -636,7 +676,7 @@ class ElectrumService: NSObject {
         let message = jsonString + "\n"
         let data = message.data(using: .utf8)!
         requestsLock.lock()
-        pendingRequests[id] = RequestHandler(method: "blockchain.transaction.get") { result in
+        let handler = RequestHandler(method: "blockchain.transaction.get") { result in
             switch result {
             case .success(let value):
                 if let dict = value as? [String: Any] {
@@ -662,12 +702,23 @@ class ElectrumService: NSObject {
                 self.deliverOnMain(.failure(error), to: completion)
             }
         }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.requestsLock.lock()
+            let timedOut = self.pendingRequests.removeValue(forKey: id)
+            self.requestsLock.unlock()
+            timedOut?.completion(.failure(ElectrumError.timeout))
+        }
+        handler.timeoutWorkItem = work
+        pendingRequests[id] = handler
         requestsLock.unlock()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 12, execute: work)
         connection?.send(content: data, completion: .contentProcessed { error in
             if let error = error {
                 self.requestsLock.lock()
                 let handler = self.pendingRequests.removeValue(forKey: id)
                 self.requestsLock.unlock()
+                handler?.timeoutWorkItem?.cancel()
                 handler?.completion(.failure(error))
             }
         })
@@ -737,6 +788,56 @@ class ElectrumService: NSObject {
             }
         })
     }
+
+    // Position of tx in block (intra-block index)
+    func getTransactionPosition(txid: String, height: Int, completion: @escaping (Result<Int, Error>) -> Void) {
+        let id = nextRequestId()
+        let request: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "blockchain.transaction.get_merkle",
+            "params": [txid, height]
+        ]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: request),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            completion(.failure(ElectrumError.invalidRequest))
+            return
+        }
+        let data = (jsonString + "\n").data(using: .utf8)!
+        requestsLock.lock()
+        let handler = RequestHandler(method: "blockchain.transaction.get_merkle") { result in
+            switch result {
+            case .success(let value):
+                if let dict = value as? [String: Any], let pos = (dict["pos"] as? Int) ?? (dict["position"] as? Int) {
+                    self.deliverOnMain(.success(pos), to: completion)
+                } else {
+                    self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion)
+                }
+            case .failure(let e):
+                self.deliverOnMain(.failure(e), to: completion)
+            }
+        }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.requestsLock.lock()
+            let timedOut = self.pendingRequests.removeValue(forKey: id)
+            self.requestsLock.unlock()
+            timedOut?.completion(.failure(ElectrumError.timeout))
+        }
+        handler.timeoutWorkItem = work
+        pendingRequests[id] = handler
+        requestsLock.unlock()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 12, execute: work)
+        connection?.send(content: data, completion: .contentProcessed { error in
+            if let error = error {
+                self.requestsLock.lock()
+                let h = self.pendingRequests.removeValue(forKey: id)
+                self.requestsLock.unlock()
+                h?.timeoutWorkItem?.cancel()
+                h?.completion(.failure(error))
+            }
+        })
+    }
     
     func getFeeEstimate(blocks: Int, completion: @escaping (Result<Double, Error>) -> Void) {
         sendRequest(method: "blockchain.estimatefee", params: [blocks], completion: completion)
@@ -784,6 +885,80 @@ class ElectrumService: NSObject {
                 handler?.completion(.failure(error))
             }
         })
+    }
+
+    // MARK: - Block Header by Height
+    func getBlockHeader(height: Int, completion: @escaping (Result<Data, Error>) -> Void) {
+        // ElectrumX: blockchain.block.header -> header as hex (80 bytes)
+        ensureConnected()
+        let id = nextRequestId()
+        let request: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "blockchain.block.header",
+            "params": [height]
+        ]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: request),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            completion(.failure(ElectrumError.invalidRequest))
+            return
+        }
+        let data = (jsonString + "\n").data(using: .utf8)!
+        requestsLock.lock()
+        let handler = RequestHandler(method: "blockchain.block.header") { result in
+            switch result {
+            case .success(let value):
+                if let hex = value as? String {
+                    let d = hex.hexStringToData()
+                    self.deliverOnMain(.success(d), to: completion)
+                } else if let dict = value as? [String: Any], let hex = dict["hex"] as? String {
+                    let d = hex.hexStringToData()
+                    self.deliverOnMain(.success(d), to: completion)
+                } else {
+                    self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion)
+                }
+            case .failure(let e):
+                self.deliverOnMain(.failure(e), to: completion)
+            }
+        }
+        // timeout
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.requestsLock.lock()
+            let timedOut = self.pendingRequests.removeValue(forKey: id)
+            self.requestsLock.unlock()
+            timedOut?.completion(.failure(ElectrumError.timeout))
+        }
+        handler.timeoutWorkItem = work
+        pendingRequests[id] = handler
+        requestsLock.unlock()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 12, execute: work)
+        connection?.send(content: data, completion: .contentProcessed { error in
+            if let error = error {
+                self.requestsLock.lock()
+                let h = self.pendingRequests.removeValue(forKey: id)
+                self.requestsLock.unlock()
+                h?.timeoutWorkItem?.cancel()
+                h?.completion(.failure(error))
+            }
+        })
+    }
+
+    func getBlockTimestamp(height: Int, completion: @escaping (Result<Int, Error>) -> Void) {
+        getBlockHeader(height: height) { result in
+            switch result {
+            case .success(let header):
+                // Bitcoin header: version(4) prevhash(32) merkle(32) time(4 LE) bits(4) nonce(4) => time starts at offset 68
+                guard header.count >= 72 else { self.deliverOnMain(.failure(ElectrumError.invalidResponse), to: completion); return }
+                let tRange = header.index(header.startIndex, offsetBy: 68)..<header.index(header.startIndex, offsetBy: 72)
+                let tData = header[tRange]
+                let bytes = Array(tData)
+                let ts = Int(UInt32(bytes[0]) | (UInt32(bytes[1]) << 8) | (UInt32(bytes[2]) << 16) | (UInt32(bytes[3]) << 24))
+                self.deliverOnMain(.success(ts), to: completion)
+            case .failure(let e):
+                self.deliverOnMain(.failure(e), to: completion)
+            }
+        }
     }
     
     // MARK: - Helper Methods

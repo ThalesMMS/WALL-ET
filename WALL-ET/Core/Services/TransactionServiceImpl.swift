@@ -1,9 +1,11 @@
 import Foundation
 
+@MainActor
 final class TransactionService: TransactionServiceProtocol {
     private let repo = DefaultWalletRepository(keychainService: KeychainService())
     private let electrum = ElectrumService.shared
     private var didLogOneRawTx = false
+    private var txDecodeCache: [String: DecodedTransaction] = [:]
     
     func fetchTransactions(page: Int, pageSize: Int) async throws -> [TransactionModel] {
         let all = try await fetchAllTransactions()
@@ -210,6 +212,7 @@ final class TransactionService: TransactionServiceProtocol {
     
     // MARK: - Internals
     private func fetchAllTransactions() async throws -> [TransactionModel] {
+        // Electrum-only path (no external REST APIs)
         // Ensure gap-limit discovery so we include addresses that may hold history
         // Debug: reduce explored addresses to minimize log volume
         let debugGap = 3
@@ -220,22 +223,37 @@ final class TransactionService: TransactionServiceProtocol {
         guard !addresses.isEmpty else { return [] }
         let owned = Set(addresses)
         print("[TX] total owned addresses=\(owned.count)")
-        // Fetch history per address
-        let histories: [[String]] = try await withThrowingTaskGroup(of: [String].self) { group in
+        // Fetch history per address (txid + optional block height)
+        let histories: [[(String, Int?)]] = try await withThrowingTaskGroup(of: [(String, Int?)].self) { group in
             for addr in owned {
-                group.addTask { try await self.fetchTxids(for: addr) }
+                group.addTask { try await self.fetchHistory(for: addr) }
             }
-            var res: [[String]] = []
-            for try await ids in group { res.append(ids) }
+            var res: [[(String, Int?)]] = []
+            for try await tuples in group { res.append(tuples) }
             return res
         }
-        let txids = Array(Set(histories.flatMap { $0 }))
+        var heightMap: [String: Int?] = [:]
+        for arr in histories {
+            for (h, ht) in arr {
+                if let existing = heightMap[h] {
+                    if existing == nil, let ht = ht { heightMap[h] = ht }
+                } else {
+                    heightMap[h] = ht
+                }
+            }
+        }
+        let txids = Array(heightMap.keys)
         print("[TX] unique txids total=\(txids.count)")
-        // Debug: log raw JSON for just one txid to avoid huge logs
+        // Debug: log raw tx (hex) for just one txid to avoid huge logs
         if !didLogOneRawTx, let sample = txids.first {
-            let dict = try? await fetchTxJSON(sample)
-            if let dict = dict, let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]), let json = String(data: data, encoding: .utf8) {
-                print("[TX][RAW TX JSON SAMPLE] txid=\(sample) json=\(json)")
+            let hex: String? = try? await withCheckedThrowingContinuation { cont in
+                electrum.getTransaction(sample) { result in
+                    switch result { case .success(let s): cont.resume(returning: s); case .failure(let e): cont.resume(throwing: e) }
+                }
+            }
+            if let hex = hex {
+                let preview = hex.prefix(120)
+                print("[TX][RAW TX HEX SAMPLE] txid=\(sample) hex=\(preview)…")
                 didLogOneRawTx = true
             }
         }
@@ -246,10 +264,11 @@ final class TransactionService: TransactionServiceProtocol {
             }
         }
         print("[TX] current block height=\(currentHeight)")
-        // Fetch verbose transactions and build models
+        // Fetch raw transactions and build models
         let models: [TransactionModel] = try await withThrowingTaskGroup(of: TransactionModel?.self) { group in
             for txid in txids {
-                group.addTask { try await self.buildModel(txid: txid, owned: owned, currentHeight: currentHeight) }
+                let knownHeight = heightMap[txid] ?? nil
+                group.addTask { try await self.buildModel(txid: txid, owned: owned, currentHeight: currentHeight, knownBlockHeight: knownHeight) }
             }
             var result: [TransactionModel] = []
             for try await m in group { if let m = m { result.append(m) } }
@@ -259,27 +278,38 @@ final class TransactionService: TransactionServiceProtocol {
         }
         return models
     }
+
     
-    private func fetchTxids(for address: String) async throws -> [String] {
+    
+    private func fetchHistory(for address: String) async throws -> [(String, Int?)] {
         try await withCheckedThrowingContinuation { cont in
             electrum.getAddressHistory(for: address) { result in
                 switch result {
                 case .success(let arr):
-                    let ids = arr.compactMap { $0["tx_hash"] as? String }
-                    print("[TX] address=\(address) txids=\(ids.count)")
-                    cont.resume(returning: ids)
+                    let tuples: [(String, Int?)] = arr.compactMap { item in
+                        guard let h = item["tx_hash"] as? String else { return nil }
+                        let height = (item["height"] as? Int).flatMap { $0 > 0 ? $0 : nil }
+                        return (h, height)
+                    }
+                    print("[TX] address=\(address) txids=\(tuples.count)")
+                    cont.resume(returning: tuples)
                 case .failure(let e): cont.resume(throwing: e)
                 }
             }
         }
     }
 
-    private func fetchTxJSON(_ txid: String) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { cont in
-            electrum.getTransactionVerbose(txid) { result in
-                switch result { case .success(let dict): cont.resume(returning: dict); case .failure(let e): cont.resume(throwing: e) }
+    private func fetchAndDecodeTx(_ txid: String) async throws -> DecodedTransaction {
+        if let cached = txDecodeCache[txid] { return cached }
+        let rawHex: String = try await withCheckedThrowingContinuation { cont in
+            electrum.getTransaction(txid) { result in
+                switch result { case .success(let hex): cont.resume(returning: hex); case .failure(let e): cont.resume(throwing: e) }
             }
         }
+        let decoder = TransactionDecoder(network: electrum.currentNetwork)
+        let decoded = try decoder.decode(rawHex: rawHex)
+        txDecodeCache[txid] = decoded
+        return decoded
     }
     
     private func scriptForAddress(_ address: String) -> Data? {
@@ -290,95 +320,60 @@ final class TransactionService: TransactionServiceProtocol {
         }
     }
     
-    private func buildModel(txid: String, owned: Set<String>, currentHeight: Int) async throws -> TransactionModel? {
-        let json = try await fetchTxJSON(txid)
-        let time = (json["time"] as? TimeInterval).map { Date(timeIntervalSince1970: $0) } ?? Date()
-        let height = json["blockheight"] as? Int
+    private func buildModel(txid: String, owned: Set<String>, currentHeight: Int, knownBlockHeight: Int?) async throws -> TransactionModel? {
+        let tx = try await fetchAndDecodeTx(txid)
+        let height = knownBlockHeight
         let confirmations = height != nil ? max(0, currentHeight - height! + 1) : 0
         let status: TransactionStatus = (height != nil && confirmations >= 6) ? .confirmed : .pending
-        
-        // Precompute scriptPubKey hex for owned addresses (P2WPKH / P2PKH)
-        let ownedSpkHex: Set<String> = Set(owned.compactMap { addr in
-            if addr.hasPrefix("bc1") || addr.hasPrefix("tb1") {
-                return BitcoinService().createP2WPKHScript(for: addr)?.hexString
-            } else {
-                return BitcoinService().createP2PKHScript(for: addr)?.hexString
-            }
-        })
 
-        // Sum outputs to our addresses (by address list or by scriptPubKey hex match)
+        // Sum outputs to our addresses
         var toOwnedSats: Int64 = 0
         var firstExternalAddress: String = ""
-        if let vouts = json["vout"] as? [[String: Any]] {
-            for vout in vouts {
-                // value can be BTC or sats
-                let valueSats: Int64
-                if let v = vout["value"] as? Double { valueSats = Int64(v * 100_000_000) }
-                else if let v = vout["value"] as? Int { valueSats = Int64(v) }
-                else { valueSats = 0 }
-                var hitOwned = false
-                var outAddresses: [String] = []
-                if let spk = vout["scriptPubKey"] as? [String: Any] {
-                    if let addrs = spk["addresses"] as? [String] { outAddresses = addrs }
-                    if outAddresses.isEmpty, let a = spk["address"] as? String { outAddresses = [a] }
-                    // Prefer robust match via scriptPubKey hex, if provided by server
-                    if let spkHex = spk["hex"] as? String, ownedSpkHex.contains(spkHex.lowercased()) {
-                        hitOwned = true
-                    }
-                }
-                if !hitOwned {
-                    hitOwned = outAddresses.contains(where: { owned.contains($0) })
-                }
-                if hitOwned { toOwnedSats += valueSats }
-                else if firstExternalAddress.isEmpty, let ext = outAddresses.first { firstExternalAddress = ext }
-            }
+        var outputsTotal: Int64 = 0
+        for o in tx.outputs {
+            outputsTotal += o.value
+            if let a = o.address, owned.contains(a) { toOwnedSats += o.value }
+            else if firstExternalAddress.isEmpty, let a = o.address { firstExternalAddress = a }
         }
-        // Sum inputs from our addresses by inspecting previous outputs
+
+        // Sum inputs and fromOwned via prevouts
         var fromOwnedSats: Int64 = 0
-        if let vins = json["vin"] as? [[String: Any]] {
-            for vin in vins {
-                guard let prevTxid = vin["txid"] as? String, let voutIndex = vin["vout"] as? Int else { continue }
-                let prev = try? await fetchTxJSON(prevTxid)
-                if prev == nil { logError("[TX] Failed to fetch parent tx: \(prevTxid) for input index \(voutIndex)") }
-                if let prevVouts = prev?["vout"] as? [[String: Any]], voutIndex < prevVouts.count {
-                    let p = prevVouts[voutIndex]
-                    let valueSats: Int64
-                    if let v = p["value"] as? Double { valueSats = Int64(v * 100_000_000) }
-                    else if let v = p["value"] as? Int { valueSats = Int64(v) }
-                    else { valueSats = 0 }
-                    var hitOwned = false
-                    if let spk = p["scriptPubKey"] as? [String: Any] {
-                        if let spkHex = spk["hex"] as? String, ownedSpkHex.contains(spkHex.lowercased()) {
-                            hitOwned = true
-                        }
-                        if !hitOwned {
-                            let addrs = (spk["addresses"] as? [String]) ?? ((spk["address"] as? String).map { [$0] } ?? [])
-                            hitOwned = addrs.contains(where: { owned.contains($0) })
-                        }
-                    }
-                    if hitOwned {
-                        fromOwnedSats += valueSats
-                    }
-                }
+        var inputsTotal: Int64 = 0
+        var vinCount = 0
+        for vin in tx.inputs {
+            let parent = try await fetchAndDecodeTx(vin.prevTxid)
+            if vin.vout < parent.outputs.count {
+                let prev = parent.outputs[vin.vout]
+                inputsTotal += prev.value
+                if let a = prev.address, owned.contains(a) { fromOwnedSats += prev.value }
+            }
+            vinCount += 1
+        }
+
+        let feeSats = max(0, inputsTotal - outputsTotal)
+        let netSats = toOwnedSats - fromOwnedSats
+        let tType: TransactionModel.TransactionType = netSats >= 0 ? .received : .sent
+        let amountBTC = Double(abs(netSats)) / 100_000_000.0
+        let feeBTC = Double(feeSats) / 100_000_000.0
+        let address = tType == .received ? (tx.outputs.first { if let a = $0.address { return owned.contains(a) } else { return false } }?.address ?? (owned.first ?? "")) : firstExternalAddress
+        // Derive date from block header if available; fallback to now
+        var date = Date()
+        if let h = height {
+            if let ts: Int = try? await withCheckedThrowingContinuation({ (cont: CheckedContinuation<Int, Error>) in
+                electrum.getBlockTimestamp(height: h) { cont.resume(with: $0) }
+            }) {
+                date = Date(timeIntervalSince1970: TimeInterval(ts))
             }
         }
-        let netSats = toOwnedSats - fromOwnedSats
-        let amountBTC = Double(abs(netSats)) / 100_000_000.0
-        let tType: TransactionModel.TransactionType = netSats >= 0 ? .received : .sent
-        let address = tType == .received ? (owned.first ?? "") : firstExternalAddress
-        let feeBTC: Double = {
-            if let fsats = json["fee"] as? Int64 { return Double(fsats) / 100_000_000.0 }
-            if let fs = json["fee"] as? Int { return Double(fs) / 100_000_000.0 }
-            if let fd = json["fee"] as? Double { return fd / 100_000_000.0 }
-            return 0
-        }()
+
+        print("[TX] build txid=\(txid) vin=\(vinCount) toOwned=\(toOwnedSats) fromOwned=\(fromOwnedSats) net=\(netSats) fee=\(feeSats) conf=\(confirmations)")
         return TransactionModel(
             id: txid,
             type: tType,
             amount: amountBTC,
             fee: feeBTC,
             address: address,
-            date: time,
+            date: date,
             status: status,
             confirmations: confirmations
         )

@@ -60,12 +60,12 @@ class SendViewModel: ObservableObject {
     }
     
     // MARK: - Initialization
-    init(walletService: WalletServiceProtocol = WalletService(),
-         transactionService: TransactionServiceProtocol = TransactionService(),
-         feeService: FeeServiceProtocol = FeeService()) {
-        self.walletService = walletService
-        self.transactionService = transactionService
-        self.feeService = feeService
+    init(walletService: WalletServiceProtocol? = nil,
+         transactionService: TransactionServiceProtocol? = nil,
+         feeService: FeeServiceProtocol? = nil) {
+        self.walletService = walletService ?? WalletService()
+        self.transactionService = transactionService ?? TransactionService()
+        self.feeService = feeService ?? FeeService()
         
         setupBindings()
         loadInitialData()

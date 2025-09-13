@@ -5,6 +5,7 @@ struct SettingsView: View {
     @AppStorage("enableBiometrics") private var enableBiometrics = true
     @AppStorage("hideBalance") private var hideBalance = false
     @AppStorage("enableNotifications") private var enableNotifications = true
+    @AppStorage("useNewTxPipeline") private var useNewTxPipeline = true
     @AppStorage("darkMode") private var darkMode = false
     @State private var showingBackupAlert = false
     @State private var showingDeleteAlert = false
@@ -73,6 +74,9 @@ struct SettingsView: View {
                     
                     NavigationLink(destination: NetworkSettingsView()) {
                         Label("Network Settings", systemImage: "network")
+                    }
+                    Toggle(isOn: $useNewTxPipeline) {
+                        Label("New Transaction Pipeline", systemImage: "arrow.triangle.2.circlepath")
                     }
                 } header: {
                     Text("Preferences")

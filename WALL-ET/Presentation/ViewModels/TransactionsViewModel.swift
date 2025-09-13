@@ -20,6 +20,10 @@ class TransactionsViewModel: ObservableObject {
     
     // MARK: - Services
     private let transactionService: TransactionServiceProtocol
+    private var useNewPipeline: Bool = UserDefaults.standard.bool(forKey: "useNewTxPipeline")
+    // New pipeline components
+    private var poolGroup: PoolGroup?
+    private var poolCancellables = Set<AnyCancellable>()
     private var cancellables = Set<AnyCancellable>()
     
     enum TransactionFilter: String, CaseIterable {
@@ -31,11 +35,16 @@ class TransactionsViewModel: ObservableObject {
     }
     
     // MARK: - Initialization
-    init(transactionService: TransactionServiceProtocol = TransactionService()) {
-        self.transactionService = transactionService
+    init(transactionService: TransactionServiceProtocol? = nil) {
+        self.transactionService = transactionService ?? TransactionService()
         setupBindings()
-        // Wait for Electrum connectivity; still attempt an initial load (will no-op if empty)
-        loadTransactions()
+        if useNewPipeline {
+            setupNewPipeline()
+            refresh()
+        } else {
+            // Wait for Electrum connectivity; still attempt an initial load (will no-op if empty)
+            loadTransactions()
+        }
         ElectrumService.shared.connectionStatePublisher
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
@@ -83,6 +92,18 @@ class TransactionsViewModel: ObservableObject {
     
     // MARK: - Data Loading
     func loadTransactions() {
+        if useNewPipeline {
+            Task {
+                isLoading = true
+                let targetCount = currentPage * pageSize
+                if let items = try? await poolGroup?.itemsSingle(count: targetCount) {
+                    transactions = items
+                    applyFilters(searchText: searchText, filter: selectedFilter)
+                }
+                isLoading = false
+            }
+            return
+        }
         Task {
             isLoading = true
             do {
@@ -264,6 +285,36 @@ class TransactionsViewModel: ObservableObject {
             transactions[idx] = updated(transactions[idx])
             applyFilters(searchText: searchText, filter: selectedFilter)
         }
+    }
+}
+
+private extension TransactionsViewModel {
+    func setupNewPipeline() {
+        // Build adapter + pool group
+        let adapter = ElectrumTransactionsAdapter()
+        let provider = PoolProvider(adapter: adapter)
+        let pool = Pool(provider: provider)
+        self.poolGroup = PoolGroup(pools: [pool])
+        // Listen for updates and re-apply filters
+        poolGroup?.itemsUpdatedPublisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] partial in
+                guard let self = self else { return }
+                // Merge partials into current list and reapply filters
+                var ids = Set(self.transactions.map { $0.id })
+                var changed = false
+                for m in partial where !ids.contains(m.id) {
+                    self.transactions.append(m)
+                    ids.insert(m.id)
+                    changed = true
+                }
+                if changed {
+                    // Keep sorted by date desc
+                    self.transactions.sort { $0.date > $1.date }
+                    self.applyFilters(searchText: self.searchText, filter: self.selectedFilter)
+                }
+            }
+            .store(in: &poolCancellables)
     }
 }
 

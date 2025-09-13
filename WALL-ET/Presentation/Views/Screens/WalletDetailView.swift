@@ -469,11 +469,11 @@ class WalletDetailViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init(walletId: String,
-         walletService: WalletServiceProtocol = WalletService(),
-         transactionService: TransactionServiceProtocol = TransactionService()) {
+         walletService: WalletServiceProtocol? = nil,
+         transactionService: TransactionServiceProtocol? = nil) {
         self.walletId = walletId
-        self.walletService = walletService
-        self.transactionService = transactionService
+        self.walletService = walletService ?? WalletService()
+        self.transactionService = transactionService ?? TransactionService()
         ElectrumService.shared.transactionUpdatePublisher
             .receive(on: RunLoop.main)
             .sink { [weak self] update in self?.applyUpdate(update) }

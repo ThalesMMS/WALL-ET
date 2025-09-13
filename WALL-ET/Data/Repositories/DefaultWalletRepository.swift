@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class DefaultWalletRepository: WalletRepositoryProtocol {
     private let persistence = WalletRepository()
     private let keychain: KeychainServiceProtocol

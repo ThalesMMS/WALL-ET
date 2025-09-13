@@ -4,6 +4,7 @@ import CoreImage.CIFilterBuiltins
 
 struct SendReceiveView: View {
     @State private var selectedTab = 0
+    @State private var showImportSheet = false
     
     var body: some View {
         NavigationView {
@@ -23,6 +24,16 @@ struct SendReceiveView: View {
                 }
             }
             .navigationTitle(selectedTab == 0 ? "Send Bitcoin" : "Receive Bitcoin")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showImportSheet = true }) {
+                        Image(systemName: "arrow.down.doc")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showImportSheet) {
+            ImportTransactionView()
         }
     }
 }
@@ -31,7 +42,7 @@ struct SendView: View {
     @State private var recipientAddress = ""
     @State private var btcAmount = ""
     @State private var fiatAmount = ""
-    @State private var note = ""
+    // Removed note field
     @State private var selectedFeeOption = FeeOption.normal
     @State private var showScanner = false
     @State private var showConfirmation = false
@@ -196,14 +207,7 @@ struct SendView: View {
                 
                 feeSelectorSection
                 
-                // Note (Optional)
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Note (Optional)", systemImage: "note.text")
-                        .font(.headline)
-                    
-                    TextField("Add a note for this transaction", text: $note)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                }
+                // Note section removed
                 
                 // Send Button
                 Button(action: { Task { await recalcEstimate(); showConfirmation = true } }) {
@@ -243,8 +247,7 @@ struct SendView: View {
                 btcAmount: Double(btcAmount) ?? 0,
                 fiatAmount: Double(fiatAmount) ?? 0,
                 fee: Double(effectiveSatPerByte()),
-                estimatedVBytes: estVBytes,
-                note: note
+                estimatedVBytes: estVBytes
             )
         }
         // Re-estimation is performed on initial task and before showing confirmation.
@@ -348,7 +351,7 @@ struct ReceiveView: View {
     @AppStorage("gap_limit") private var gapLimit: Int = 20
     @AppStorage("auto_rotate_receive") private var autoRotate = true
     @State private var requestAmount = ""
-    @State private var note = ""
+    // Removed note field
     @State private var showShareSheet = false
     @State private var copied = false
     // Removed polling; react to Electrum scripthash notifications instead
@@ -426,8 +429,7 @@ struct ReceiveView: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(8)
                     
-                    TextField("Add a note or description", text: $note)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    // Note removed
                 }
                 
                 // Different Address Formats
@@ -474,9 +476,6 @@ struct ReceiveView: View {
         var uri = "bitcoin:\(walletAddress)"
         if !requestAmount.isEmpty, let amount = Double(requestAmount) {
             uri += "?amount=\(amount)"
-            if !note.isEmpty {
-                uri += "&message=\(note.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-            }
         }
         return uri
     }
@@ -603,7 +602,6 @@ struct TransactionConfirmationView: View {
     // Pass sat/vB as fee for the service; we show estimated BTC here
     let fee: Double
     let estimatedVBytes: Int
-    let note: String
     @Environment(\.dismiss) var dismiss
     @State private var isProcessing = false
     
@@ -644,10 +642,7 @@ struct TransactionConfirmationView: View {
                             value: "\(String(format: "%.8f", totalBTC)) BTC",
                             isTotal: true
                         )
-                        
-                        if !note.isEmpty {
-                            ConfirmationRow(label: "Note", value: note)
-                        }
+                        // Note removed
                     }
                     .padding()
                     .background(Color(.systemGray6))

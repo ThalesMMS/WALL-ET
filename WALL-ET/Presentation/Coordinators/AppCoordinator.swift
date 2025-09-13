@@ -110,6 +110,10 @@ class AppCoordinator: ObservableObject {
     
     // MARK: - Initialization
     init() {
+        // Defaults
+        UserDefaults.standard.register(defaults: [
+            "useNewTxPipeline": true
+        ])
         setupDependencies()
         setupNotificationObservers()
         checkForOnboarding()

@@ -17,6 +17,7 @@ class PriceDataService {
     
     // Cache
     private var priceCache: [String: PriceData] = [:]
+    private let cacheLock = NSLock()
     private let cacheExpiration: TimeInterval = 30 // 30 seconds
     
     // API Configuration
@@ -61,7 +62,10 @@ class PriceDataService {
     func fetchCurrentPrice(for currency: String = "USD") async -> PriceData? {
         // Check cache first
         let cacheKey = "BTC-\(currency)"
-        if let cached = priceCache[cacheKey],
+        cacheLock.lock()
+        let cached = priceCache[cacheKey]
+        cacheLock.unlock()
+        if let cached,
            Date().timeIntervalSince(cached.timestamp) < cacheExpiration {
             return cached
         }
@@ -72,7 +76,7 @@ class PriceDataService {
                 let priceData = try await provider.fetchPrice(currency: currency)
                 
                 // Update cache
-                priceCache[cacheKey] = priceData
+                cacheLock.lock(); priceCache[cacheKey] = priceData; cacheLock.unlock()
                 
                 // Publish update
                 priceUpdatePublisher.send(priceData)

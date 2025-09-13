@@ -1,9 +1,14 @@
 import Foundation
 
+@MainActor
 final class WalletService: WalletServiceProtocol {
     private let repo: DefaultWalletRepository
-    init(repository: DefaultWalletRepository = DefaultWalletRepository(keychainService: KeychainService())) {
-        self.repo = repository
+    init(repository: DefaultWalletRepository? = nil) {
+        if let repository = repository {
+            self.repo = repository
+        } else {
+            self.repo = DefaultWalletRepository(keychainService: KeychainService())
+        }
     }
 
     func fetchWallets() async throws -> [WalletModel] {
