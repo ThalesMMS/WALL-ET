@@ -1,48 +1,17 @@
 import Foundation
 import Combine
-import AVFoundation
 import UIKit
 
 @MainActor
-class SendViewModel: ObservableObject {
-    // MARK: - Published Properties
-    @Published var recipientAddress = ""
-    @Published var btcAmount = ""
-    @Published var fiatAmount = ""
-    @Published var note = ""
-    @Published var selectedFeeOption: FeeOption = .normal
-    @Published var customFeeRate: String = ""
-    @Published var useCustomFee = false
-    @Published var useMaxAmount = false
-    
-    // MARK: - State
-    @Published var isAddressValid = false
-    @Published var isAmountValid = false
-    @Published var estimatedFee: Double = 0
-    @Published var totalAmount: Double = 0
-    @Published var availableBalance: Double = 1.23456789
-    @Published var currentBTCPrice: Double = 62000
-    
-    // MARK: - UI State
-    @Published var showScanner = false
-    @Published var showConfirmation = false
-    @Published var showAddressBook = false
-    @Published var isProcessing = false
-    @Published var errorMessage: String?
-    @Published var showError = false
-    
-    // MARK: - Services
-    private let walletService: WalletServiceProtocol
-    private let transactionService: TransactionServiceProtocol
-    private let feeService: FeeServiceProtocol
-    private var cancellables = Set<AnyCancellable>()
-    
-    enum FeeOption: String, CaseIterable {
+final class SendViewModel: ObservableObject {
+    enum FeeOption: String, CaseIterable, Identifiable {
         case slow = "Slow"
         case normal = "Normal"
         case fast = "Fast"
         case custom = "Custom"
-        
+
+        var id: String { rawValue }
+
         var description: String {
             switch self {
             case .slow: return "~60 min"
@@ -51,296 +20,310 @@ class SendViewModel: ObservableObject {
             case .custom: return "Custom"
             }
         }
-    }
-    
-    struct FeeEstimate {
-        let satPerByte: Int
-        let totalFee: Double
-        let estimatedTime: Int // in minutes
-    }
-    
-    // MARK: - Initialization
-    init(walletService: WalletServiceProtocol? = nil,
-         transactionService: TransactionServiceProtocol? = nil,
-         feeService: FeeServiceProtocol? = nil) {
-        self.walletService = walletService ?? WalletService()
-        self.transactionService = transactionService ?? TransactionService()
-        self.feeService = feeService ?? FeeService()
-        
-        setupBindings()
-        loadInitialData()
-    }
-    
-    // MARK: - Setup
-    private func setupBindings() {
-        // Validate address
-        $recipientAddress
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .sink { [weak self] address in
-                self?.validateAddress(address)
-            }
-            .store(in: &cancellables)
-        
-        // BTC to Fiat conversion
-        $btcAmount
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .sink { [weak self] btcAmount in
-                self?.updateFiatAmount(from: btcAmount)
-            }
-            .store(in: &cancellables)
-        
-        // Fiat to BTC conversion
-        $fiatAmount
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .sink { [weak self] fiatAmount in
-                self?.updateBTCAmount(from: fiatAmount)
-            }
-            .store(in: &cancellables)
-        
-        // Fee estimation
-        Publishers.CombineLatest3($btcAmount, $selectedFeeOption, $customFeeRate)
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .sink { [weak self] amount, feeOption, customRate in
-                Task {
-                    await self?.estimateFee()
-                }
-            }
-            .store(in: &cancellables)
-    }
-    
-    // MARK: - Data Loading
-    private func loadInitialData() {
-        Task {
-            do {
-                availableBalance = try await walletService.getAvailableBalance()
-                currentBTCPrice = try await PriceService().fetchBTCPrice().price
-            } catch {
-                handleError(error)
+
+        var defaultSatPerByte: Int {
+            switch self {
+            case .slow: return 5
+            case .normal: return 20
+            case .fast: return 50
+            case .custom: return 15
             }
         }
     }
-    
-    // MARK: - Validation
-    private func validateAddress(_ address: String) {
-        guard !address.isEmpty else {
+
+    // MARK: - Published State
+    @Published var recipientAddress = "" {
+        didSet { validateAddress() }
+    }
+    @Published var btcAmount = "" {
+        didSet { handleBTCAmountChange(oldValue: oldValue) }
+    }
+    @Published var fiatAmount = "" {
+        didSet { handleFiatAmountChange(oldValue: oldValue) }
+    }
+    @Published var selectedFeeOption: FeeOption = .normal {
+        didSet { Task { await recalculateEstimate() } }
+    }
+    @Published var customSatPerByte: Double = 15 {
+        didSet { Task { await recalculateEstimate() } }
+    }
+    @Published var showScanner = false
+    @Published var showConfirmation = false
+    @Published var useMaxAmount = false
+    @Published private(set) var btcPrice: Double = 0
+    @Published private(set) var availableBalance: Double = 0
+    @Published private(set) var estVBytes: Int = 140
+    @Published private(set) var isAddressValid = false
+    @Published private(set) var isAmountValid = false
+
+    // MARK: - Services
+    private let walletRepository: WalletRepositoryProtocol
+    private let priceService: PriceServiceProtocol
+    private let transactionService: TransactionService
+    private var didLoad = false
+    private var isUpdatingAmounts = false
+    private var isApplyingMaxAmount = false
+
+    // MARK: - Initialization
+    init(
+        walletRepository: WalletRepositoryProtocol? = nil,
+        priceService: PriceServiceProtocol? = nil,
+        transactionService: TransactionService? = nil,
+        initialBalance: Double? = nil,
+        initialPrice: Double? = nil,
+        skipInitialLoad: Bool = false
+    ) {
+        if let walletRepository {
+            self.walletRepository = walletRepository
+        } else if let resolved: WalletRepositoryProtocol = DIContainer.shared.resolve(WalletRepositoryProtocol.self) {
+            self.walletRepository = resolved
+        } else {
+            fatalError("WalletRepositoryProtocol dependency missing")
+        }
+
+        if let priceService {
+            self.priceService = priceService
+        } else if let resolved: PriceServiceProtocol = DIContainer.shared.resolve(PriceServiceProtocol.self) {
+            self.priceService = resolved
+        } else {
+            self.priceService = PriceService()
+        }
+
+        if let transactionService {
+            self.transactionService = transactionService
+        } else if let resolved: TransactionServiceProtocol = DIContainer.shared.resolve(TransactionServiceProtocol.self) as? TransactionService {
+            self.transactionService = resolved
+        } else {
+            self.transactionService = TransactionService()
+        }
+
+        if let initialBalance {
+            availableBalance = initialBalance
+        }
+
+        if let initialPrice {
+            btcPrice = initialPrice
+        }
+
+        if skipInitialLoad {
+            didLoad = true
+        }
+    }
+
+    // MARK: - Public API
+    func handleAppear() async {
+        guard !didLoad else { return }
+        didLoad = true
+        await loadInitialData()
+    }
+
+    func pasteAddressFromClipboard() {
+        if let pasteString = UIPasteboard.general.string {
+            recipientAddress = pasteString
+        }
+    }
+
+    func toggleMaxAmount() {
+        if useMaxAmount {
+            useMaxAmount = false
+            return
+        }
+
+        isApplyingMaxAmount = true
+        useMaxAmount = true
+        let feeBTC = estimatedFeeBTC
+        let maxAmount = max(0, availableBalance - feeBTC)
+        btcAmount = String(format: "%.8f", maxAmount)
+        fiatAmount = String(format: "%.2f", maxAmount * btcPrice)
+        isApplyingMaxAmount = false
+    }
+
+    func selectFeeOption(_ option: FeeOption) {
+        selectedFeeOption = option
+    }
+
+    func updateCustomFeeRate(_ value: Double) {
+        customSatPerByte = value
+    }
+
+    func prepareReview() async {
+        await recalculateEstimate()
+        showConfirmation = true
+    }
+
+    func confirmationDetails() -> TransactionConfirmationDetails {
+        TransactionConfirmationDetails(
+            recipientAddress: recipientAddress,
+            btcAmount: btcAmountDouble,
+            fiatAmount: fiatAmountDouble,
+            feeRateSatPerVb: effectiveSatPerByte,
+            estimatedVBytes: estVBytes
+        )
+    }
+
+    func confirmTransaction(completion: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            completion()
+        }
+    }
+
+    func dismissConfirmation() {
+        showConfirmation = false
+    }
+
+    var isReviewEnabled: Bool {
+        isAddressValid && isAmountValid
+    }
+
+    var btcAmountDouble: Double {
+        Double(btcAmount) ?? 0
+    }
+
+    var fiatAmountDouble: Double {
+        Double(fiatAmount) ?? 0
+    }
+
+    var estimatedFeeBTC: Double {
+        Double(estVBytes * effectiveSatPerByte) / 100_000_000.0
+    }
+
+    var estimatedFeeFiat: Double {
+        estimatedFeeBTC * btcPrice
+    }
+
+    var effectiveSatPerByte: Int {
+        selectedFeeOption == .custom ? Int(customSatPerByte) : selectedFeeOption.defaultSatPerByte
+    }
+
+    // MARK: - Private Helpers
+    private func loadInitialData() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.loadBalance() }
+            group.addTask { await self.loadPrice() }
+        }
+        validateAmount()
+        await recalculateEstimate()
+    }
+
+    private func loadBalance() async {
+        do {
+            if let wallet = try await walletRepository.getAllWallets().first,
+               let address = wallet.accounts.first?.address {
+                let balance = try await walletRepository.getBalance(for: address)
+                availableBalance = balance.btcValue
+            } else {
+                availableBalance = 0
+            }
+        } catch {
+            availableBalance = 0
+        }
+    }
+
+    private func loadPrice() async {
+        do {
+            btcPrice = try await priceService.fetchBTCPrice().price
+        } catch {
+            btcPrice = 0
+        }
+    }
+
+    private func handleBTCAmountChange(oldValue: String) {
+        if useMaxAmount && !isUpdatingAmounts && !isApplyingMaxAmount {
+            useMaxAmount = false
+        }
+
+        guard !isUpdatingAmounts else { return }
+        defer { isUpdatingAmounts = false }
+        isUpdatingAmounts = true
+
+        guard let btc = Double(btcAmount) else {
+            fiatAmount = ""
+            isAmountValid = false
+            return
+        }
+
+        fiatAmount = String(format: "%.2f", btc * btcPrice)
+        validateAmount()
+        Task { await recalculateEstimate() }
+    }
+
+    private func handleFiatAmountChange(oldValue: String) {
+        if useMaxAmount && !isUpdatingAmounts && !isApplyingMaxAmount {
+            useMaxAmount = false
+        }
+
+        guard !isUpdatingAmounts else { return }
+        defer { isUpdatingAmounts = false }
+        isUpdatingAmounts = true
+
+        guard let fiat = Double(fiatAmount), btcPrice > 0 else {
+            btcAmount = ""
+            isAmountValid = false
+            return
+        }
+
+        let btc = fiat / btcPrice
+        btcAmount = String(format: "%.8f", btc)
+        validateAmount()
+        Task { await recalculateEstimate() }
+    }
+
+    private func validateAddress() {
+        guard !recipientAddress.isEmpty else {
             isAddressValid = false
             return
         }
-        
-        // Basic Bitcoin address validation
-        let isValidBech32 = address.hasPrefix("bc1") && address.count >= 42
-        let isValidP2SH = address.hasPrefix("3") && address.count >= 26
-        let isValidLegacy = address.hasPrefix("1") && address.count >= 26
-        let isValidTestnet = address.hasPrefix("tb1") || address.hasPrefix("2")
-        
-        isAddressValid = isValidBech32 || isValidP2SH || isValidLegacy || isValidTestnet
+
+        let address = recipientAddress.lowercased()
+        let isBech32 = address.hasPrefix("bc1") || address.hasPrefix("tb1")
+        let isP2SH = address.hasPrefix("3") || address.hasPrefix("2")
+        let isLegacy = address.hasPrefix("1")
+        isAddressValid = isBech32 || isP2SH || isLegacy
     }
-    
+
     private func validateAmount() {
         guard let amount = Double(btcAmount), amount > 0 else {
             isAmountValid = false
             return
         }
-        
-        let totalWithFee = amount + estimatedFee
-        isAmountValid = totalWithFee <= availableBalance
-        
-        if !isAmountValid {
-            errorMessage = "Insufficient balance"
-        }
+
+        isAmountValid = amount + estimatedFeeBTC <= availableBalance || availableBalance == 0
     }
-    
-    // MARK: - Amount Conversion
-    private func updateFiatAmount(from btcAmount: String) {
-        guard !btcAmount.isEmpty,
-              let btc = Double(btcAmount) else {
-            fiatAmount = ""
+
+    private func recalculateEstimate() async {
+        guard isAddressValid, let amount = Double(btcAmount), amount > 0 else {
+            estVBytes = 140
+            validateAmount()
             return
         }
-        
-        let fiat = btc * currentBTCPrice
-        fiatAmount = String(format: "%.2f", fiat)
-        validateAmount()
-    }
-    
-    private func updateBTCAmount(from fiatAmount: String) {
-        guard !fiatAmount.isEmpty,
-              let fiat = Double(fiatAmount) else {
-            btcAmount = ""
-            return
-        }
-        
-        let btc = fiat / currentBTCPrice
-        btcAmount = String(format: "%.8f", btc)
-        validateAmount()
-    }
-    
-    // MARK: - Fee Estimation
-    private func estimateFee() async {
-        guard let amount = Double(btcAmount), amount > 0 else {
-            estimatedFee = 0
-            return
-        }
-        
+
         do {
-            let feeRate = getFeeRate()
-            estimatedFee = try await feeService.estimateFee(
+            let estimate = try await transactionService.estimateFee(
+                to: recipientAddress,
                 amount: amount,
-                feeRate: feeRate
+                feeRateSatPerVb: effectiveSatPerByte
             )
-            
-            totalAmount = amount + estimatedFee
+            estVBytes = estimate.vbytes
         } catch {
-            handleError(error)
+            estVBytes = 140
         }
-    }
-    
-    private func getFeeRate() -> Int {
-        if useCustomFee, let customRate = Int(customFeeRate) {
-            return customRate
-        }
-        
-        switch selectedFeeOption {
-        case .slow:
-            return 5
-        case .normal:
-            return 20
-        case .fast:
-            return 50
-        case .custom:
-            return Int(customFeeRate) ?? 20
-        }
-    }
-    
-    // MARK: - Actions
-    func setMaxAmount() {
-        useMaxAmount = true
-        let maxAmount = availableBalance - estimatedFee
-        btcAmount = String(format: "%.8f", max(0, maxAmount))
-        updateFiatAmount(from: btcAmount)
-    }
-    
-    func scanQRCode() {
-        checkCameraPermission { [weak self] granted in
-            if granted {
-                self?.showScanner = true
-            } else {
-                self?.errorMessage = "Camera permission required to scan QR codes"
-                self?.showError = true
-            }
-        }
-    }
-    
-    func pasteFromClipboard() {
-        if let pasteString = UIPasteboard.general.string {
-            // Parse Bitcoin URI if present
-            if pasteString.hasPrefix("bitcoin:") {
-                parseBitcoinURI(pasteString)
-            } else {
-                recipientAddress = pasteString
-            }
-        }
-    }
-    
-    func selectFromAddressBook() {
-        showAddressBook = true
-    }
-    
-    func reviewTransaction() {
-        guard isAddressValid && isAmountValid else {
-            errorMessage = "Please enter a valid address and amount"
-            showError = true
-            return
-        }
-        
-        showConfirmation = true
-    }
-    
-    func confirmAndSend() {
-        guard let amount = Double(btcAmount) else { return }
-        
-        isProcessing = true
-        
-        Task {
-            do {
-                let transaction = try await transactionService.sendBitcoin(
-                    to: recipientAddress,
-                    amount: amount,
-                    fee: estimatedFee,
-                    note: note
-                )
-                
-                // Post success notification
-                NotificationCenter.default.post(
-                    name: .transactionSent,
-                    object: nil,
-                    userInfo: ["transaction": transaction]
-                )
-                
-                // Reset form
-                resetForm()
-                
-            } catch {
-                handleError(error)
-            }
-            
-            isProcessing = false
-        }
-    }
-    
-    // MARK: - Helper Methods
-    private func parseBitcoinURI(_ uri: String) {
-        guard let url = URL(string: uri),
-              url.scheme == "bitcoin" else { return }
-        
-        recipientAddress = url.host ?? ""
-        
-        if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
-            for item in components.queryItems ?? [] {
-                switch item.name {
-                case "amount":
-                    btcAmount = item.value ?? ""
-                case "message", "label":
-                    note = item.value ?? ""
-                default:
-                    break
-                }
-            }
-        }
-    }
-    
-    private func checkCameraPermission(completion: @escaping (Bool) -> Void) {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            completion(true)
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { granted in
-                DispatchQueue.main.async {
-                    completion(granted)
-                }
-            }
-        default:
-            completion(false)
-        }
-    }
-    
-    private func resetForm() {
-        recipientAddress = ""
-        btcAmount = ""
-        fiatAmount = ""
-        note = ""
-        selectedFeeOption = .normal
-        useMaxAmount = false
-        showConfirmation = false
-    }
-    
-    private func handleError(_ error: Error) {
-        errorMessage = error.localizedDescription
-        showError = true
+
+        validateAmount()
     }
 }
 
-// MARK: - Notification Names
-extension Notification.Name {
-    static let transactionSent = Notification.Name("transactionSent")
+struct TransactionConfirmationDetails {
+    let recipientAddress: String
+    let btcAmount: Double
+    let fiatAmount: Double
+    let feeRateSatPerVb: Int
+    let estimatedVBytes: Int
+
+    var estimatedFeeBTC: Double {
+        Double(estimatedVBytes * feeRateSatPerVb) / 100_000_000.0
+    }
+
+    var totalBTC: Double {
+        btcAmount + estimatedFeeBTC
+    }
 }
