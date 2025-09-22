@@ -69,6 +69,8 @@ We can consult Unstoppable’s source in this repo at any time to mirror behavio
     - `ownedAddresses: [String]` (from repository; gap‑limit ensured)
     - `txIndex: [txid: IndexedTx]` (blockHeight, timestamp, isConfirmed)
     - `sortedTxids: [String]` (desc by blockHeight/time; stable)
+  - Inline doc comments in `Core/Adapters/ElectrumTransactionsAdapter.swift` now explain index bootstrap, cache persistence,
+    concurrency limits, publisher semantics, and thread-safety expectations at the source.
   - Build index flow:
     - For each address: `get_history` → collect (tx_hash, height)
     - For new txids: fetch raw `transaction.get` (hex) and decode with decoder
