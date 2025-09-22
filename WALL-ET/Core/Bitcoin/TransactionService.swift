@@ -657,7 +657,8 @@ enum TransactionError: LocalizedError {
     case privateKeyMismatch
     case unsupportedScriptType
     case signingFailed
-    
+    case accelerationContextMissing
+
     var errorDescription: String? {
         switch self {
         case .insufficientFunds:
@@ -672,6 +673,8 @@ enum TransactionError: LocalizedError {
             return "Unsupported script type"
         case .signingFailed:
             return "Failed to sign transaction"
+        case .accelerationContextMissing:
+            return "Missing transaction acceleration context"
         }
     }
 }
