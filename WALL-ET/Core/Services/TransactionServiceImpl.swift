@@ -198,7 +198,45 @@ final class TransactionService: TransactionServiceProtocol {
     }
     
     func speedUpTransaction(_ transactionId: String) async throws { }
-    func cancelTransaction(_ transactionId: String) async throws { }
+    func cancelTransaction(_ transactionId: String) async throws {
+        let context = try await buildAccelerationContext(for: transactionId)
+
+        guard context.totalInputSats > 0 else {
+            throw TransactionError.insufficientFunds
+        }
+
+        let feeRates = try? await FeeService().getFeeRates()
+        var aggressiveRate = max(context.estimatedOriginalFeeRate * 2, 1)
+        if let rates = feeRates {
+            aggressiveRate = max(aggressiveRate, rates.fastest)
+        }
+        if aggressiveRate <= 0 { aggressiveRate = 1 }
+
+        let estimatedFee = estimateBuilderFee(inputs: context.inputs, outputCount: 1, feeRate: aggressiveRate)
+        let spendAmount = context.totalInputSats - estimatedFee
+        guard spendAmount > Int64(TransactionBuilder.Constants.dustLimit) else {
+            throw TransactionError.insufficientFunds
+        }
+
+        var replacementTx = try context.builder.buildTransaction(
+            inputs: context.inputs,
+            outputs: [(address: context.safeAddress, amount: spendAmount)],
+            changeAddress: context.safeAddress,
+            feeRate: aggressiveRate
+        )
+
+        try context.builder.signTransaction(&replacementTx, with: context.privateKeys, utxos: context.inputs)
+
+        let rawHex = replacementTx.serialize().hexString
+
+        _ = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+            electrum.broadcastTransaction(rawHex) { result in
+                cont.resume(with: result)
+            }
+        }
+
+        txDecodeCache.removeValue(forKey: transactionId)
+    }
     
     func exportTransactions(_ transactions: [TransactionModel], format: TransactionsViewModel.ExportFormat) async throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("transactions.csv")
@@ -377,5 +415,139 @@ final class TransactionService: TransactionServiceProtocol {
             status: status,
             confirmations: confirmations
         )
+    }
+}
+
+private extension TransactionService {
+    struct AccelerationContext {
+        let wallet: WalletModel
+        let meta: (name: String, basePath: String, network: BitcoinService.Network)
+        let decodedTx: DecodedTransaction
+        let inputs: [UTXO]
+        let privateKeys: [Data]
+        let totalInputSats: Int64
+        let estimatedOriginalFeeRate: Int
+        let safeAddress: String
+        let builder: TransactionBuilder
+    }
+
+    func buildAccelerationContext(for transactionId: String) async throws -> AccelerationContext {
+        let walletService = WalletService()
+        let fallbackWallets = try? await walletService.fetchWallets()
+        guard let wallet = await walletService.getActiveWallet() ?? fallbackWallets?.first else {
+            throw NSError(domain: "TransactionService", code: -10, userInfo: [NSLocalizedDescriptionKey: "No active wallet found"])
+        }
+
+        guard let meta = repo.getWalletMeta(for: wallet.id) else {
+            throw NSError(domain: "TransactionService", code: -11, userInfo: [NSLocalizedDescriptionKey: "Wallet metadata not found"])
+        }
+
+        let decoded = try await fetchAndDecodeTx(transactionId)
+
+        let infos = repo.getAddressInfos(for: wallet.id)
+        let infoMap = Dictionary(uniqueKeysWithValues: infos.map { ($0.address, $0) })
+
+        let keyName = "\(Constants.Keychain.walletSeed)_\(meta.name)"
+        guard let mnemonic = try? KeychainService().loadString(for: keyName) else {
+            throw NSError(domain: "TransactionService", code: -12, userInfo: [NSLocalizedDescriptionKey: "Seed not available for wallet"])
+        }
+        let seed = MnemonicService.shared.mnemonicToSeed(mnemonic)
+
+        var utxos: [UTXO] = []
+        var privateKeys: [Data] = []
+        var totalInput: Int64 = 0
+
+        for input in decoded.inputs {
+            let parent = try await fetchAndDecodeTx(input.prevTxid)
+            guard input.vout < parent.outputs.count else {
+                throw NSError(domain: "TransactionService", code: -13, userInfo: [NSLocalizedDescriptionKey: "Referenced output missing for input"])
+            }
+            let prevOutput = parent.outputs[input.vout]
+            totalInput += prevOutput.value
+
+            guard let address = prevOutput.address else {
+                throw NSError(domain: "TransactionService", code: -14, userInfo: [NSLocalizedDescriptionKey: "Unable to determine address for input"])
+            }
+
+            guard let info = infoMap[address] else {
+                throw NSError(domain: "TransactionService", code: -15, userInfo: [NSLocalizedDescriptionKey: "Input address \(address) is not controlled by this wallet"])
+            }
+
+            let txidData = Data(input.prevTxid.hexStringToData().reversed())
+            let outpoint = Outpoint(txid: txidData, vout: UInt32(input.vout))
+            let utxo = UTXO(outpoint: outpoint, value: prevOutput.value, scriptPubKey: prevOutput.scriptPubKey, address: address, confirmations: 0)
+            utxos.append(utxo)
+
+            let chain = info.isChange ? 1 : 0
+            let path = "\(meta.basePath)/\(chain)/\(info.index)"
+            let (privKey, _) = MnemonicService.shared.deriveAddress(from: seed, path: path, network: meta.network)
+            privateKeys.append(privKey)
+        }
+
+        guard utxos.count == decoded.inputs.count, privateKeys.count == decoded.inputs.count else {
+            throw TransactionError.privateKeyMismatch
+        }
+
+        let safeAddress = await repo.getChangeAddress(for: wallet.id) ?? (await repo.getNextReceiveAddress(for: wallet.id)) ?? wallet.address
+        guard !safeAddress.isEmpty else {
+            throw NSError(domain: "TransactionService", code: -16, userInfo: [NSLocalizedDescriptionKey: "Unable to resolve a cancellation address"])
+        }
+
+        let outputsTotal = decoded.outputs.reduce(0) { $0 + $1.value }
+        let originalFee = max(0, totalInput - outputsTotal)
+        let estimatedSize = max(1, estimateBuilderVBytes(inputs: utxos, outputs: decoded.outputs.count))
+        let estimatedRate = max(1, Int((Double(originalFee) / Double(estimatedSize)).rounded(.up)))
+
+        let builder = TransactionBuilder(network: ElectrumService.shared.currentNetwork)
+
+        return AccelerationContext(
+            wallet: wallet,
+            meta: meta,
+            decodedTx: decoded,
+            inputs: utxos,
+            privateKeys: privateKeys,
+            totalInputSats: totalInput,
+            estimatedOriginalFeeRate: estimatedRate,
+            safeAddress: safeAddress,
+            builder: builder
+        )
+    }
+
+    func estimateBuilderFee(inputs: [UTXO], outputCount: Int, feeRate: Int) -> Int64 {
+        let estimatedSize = estimateBuilderVBytes(inputs: inputs, outputs: outputCount + 1)
+        return Int64(estimatedSize * feeRate)
+    }
+
+    func estimateBuilderVBytes(inputs: [UTXO], outputs: Int) -> Int {
+        var size = 10
+        for utxo in inputs {
+            switch detectScriptType(utxo.scriptPubKey) {
+            case .p2pkh:
+                size += 148
+            case .p2wpkh:
+                size += 68
+            case .p2sh:
+                size += 91
+            default:
+                size += 148
+            }
+        }
+        size += outputs * 34
+        return size
+    }
+
+    func detectScriptType(_ script: Data) -> ScriptType {
+        if script.count == 25 && script[0] == 0x76 && script[1] == 0xa9 {
+            return .p2pkh
+        } else if script.count == 23 && script[0] == 0xa9 {
+            return .p2sh
+        } else if script.count == 22 && script[0] == 0x00 && script[1] == 0x14 {
+            return .p2wpkh
+        } else if script.count == 34 && script[0] == 0x00 && script[1] == 0x20 {
+            return .p2wsh
+        } else if script.count == 34 && script[0] == 0x51 && script[1] == 0x20 {
+            return .p2tr
+        }
+        return .unknown
     }
 }
