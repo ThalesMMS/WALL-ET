@@ -38,7 +38,7 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
         // Map to domain
         let pub = CryptoService.shared.derivePublicKey(from: priv, compressed: true) ?? Data()
         let account = Account(index: 0, address: address, publicKey: pub.toHexString())
-        return Wallet(name: name, type: type, accounts: [account])
+        return Wallet(name: name, type: type, createdAt: walletEntity.createdAt ?? Date(), accounts: [account])
     }
 
     func importWallet(mnemonic: String, name: String, type: WalletType) async throws -> Wallet {
@@ -52,7 +52,14 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
         let walletEntity = persistence.createWallet(name: name, type: "watch_only", derivationPath: nil, network: network)
         _ = persistence.addAddress(to: walletEntity, address: address, type: "watch", index: 0, isChange: false)
         let account = Account(index: 0, address: address, publicKey: "")
-        return Wallet(id: walletEntity.id ?? UUID(), name: name, type: type, accounts: [account], isWatchOnly: true)
+        return Wallet(
+            id: walletEntity.id ?? UUID(),
+            name: name,
+            type: type,
+            createdAt: walletEntity.createdAt ?? Date(),
+            accounts: [account],
+            isWatchOnly: true
+        )
     }
 
     func getAllWallets() async throws -> [Wallet] {
@@ -77,6 +84,7 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
             id: entity.id ?? UUID(),
             name: entity.name ?? "Wallet",
             type: type,
+            createdAt: entity.createdAt ?? Date(),
             accounts: accounts,
             isWatchOnly: isWatchOnly
         )

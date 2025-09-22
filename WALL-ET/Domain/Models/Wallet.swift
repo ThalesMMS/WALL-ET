@@ -8,11 +8,18 @@ struct Wallet: Identifiable, Codable, Equatable {
     var accounts: [Account]
     var isWatchOnly: Bool
     
-    init(id: UUID = UUID(), name: String, type: WalletType, accounts: [Account] = [], isWatchOnly: Bool = false) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        type: WalletType,
+        createdAt: Date = Date(),
+        accounts: [Account] = [],
+        isWatchOnly: Bool = false
+    ) {
         self.id = id
         self.name = name
         self.type = type
-        self.createdAt = Date()
+        self.createdAt = createdAt
         self.accounts = accounts
         self.isWatchOnly = isWatchOnly
     }
