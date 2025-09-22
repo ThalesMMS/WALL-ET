@@ -6,9 +6,15 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
     private let keychain: KeychainServiceProtocol
     private let electrum = ElectrumService.shared
     private let bitcoin = BitcoinService(network: .testnet)
+    private let transactionsAdapter: TransactionsAdapterProtocol
+    private let transactionsPageLimit = 50
 
-    init(keychainService: KeychainServiceProtocol) {
+    init(
+        keychainService: KeychainServiceProtocol,
+        transactionsAdapter: TransactionsAdapterProtocol = ElectrumTransactionsAdapter()
+    ) {
         self.keychain = keychainService
+        self.transactionsAdapter = transactionsAdapter
     }
 
     // MARK: - Wallets
@@ -120,8 +126,50 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
     }
 
     func getTransactions(for address: String) async throws -> [Transaction] {
-        // Not implemented yet; return empty
-        return []
+        let models = try await transactionsAdapter.transactionsSingle(
+            paginationData: nil,
+            limit: transactionsPageLimit
+        )
+
+        let transactions = models.map { model in
+            mapTransactionModel(model, walletAddress: address)
+        }
+        .sorted { $0.timestamp > $1.timestamp }
+
+        return transactions
+    }
+}
+
+private extension DefaultWalletRepository {
+    func mapTransactionModel(_ model: TransactionModel, walletAddress: String) -> Transaction {
+        let type: TransactionType
+        switch model.type {
+        case .sent:
+            type = .send
+        case .received:
+            type = .receive
+        }
+
+        let fromAddress: String?
+        switch type {
+        case .send:
+            fromAddress = walletAddress
+        case .receive, .swap:
+            fromAddress = nil
+        }
+
+        return Transaction(
+            id: model.id,
+            hash: model.id,
+            type: type,
+            amount: model.amount.bitcoinToSatoshis(),
+            fee: model.fee.bitcoinToSatoshis(),
+            timestamp: model.date,
+            confirmations: model.confirmations,
+            status: model.status,
+            fromAddress: fromAddress,
+            toAddress: model.address
+        )
     }
 }
 
