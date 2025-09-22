@@ -461,47 +461,106 @@ struct ChangePasswordView: View {
     }
 }
 
+@MainActor
+final class BackupViewModel: ObservableObject {
+    enum State: Equatable {
+        case idle
+        case loading
+        case loaded([String])
+        case noSeed(message: String)
+    }
+
+    @Published private(set) var state: State = .idle
+
+    private let walletRepository: WalletRepositoryProtocol
+    private let keychainService: KeychainServiceProtocol
+
+    init(walletRepository: WalletRepositoryProtocol, keychainService: KeychainServiceProtocol) {
+        self.walletRepository = walletRepository
+        self.keychainService = keychainService
+    }
+
+    func loadSeedPhrase() {
+        state = .loading
+
+        guard let provider = walletRepository as? BackupActiveWalletProviding else {
+            state = .noSeed(message: "Unable to access the active wallet.")
+            return
+        }
+
+        guard let wallet = provider.getActiveWallet() else {
+            state = .noSeed(message: "No active wallet found.")
+            return
+        }
+
+        if wallet.isWatchOnly {
+            state = .noSeed(message: "Watch-only wallets do not have a seed phrase.")
+            return
+        }
+
+        let key = "\(Constants.Keychain.walletSeed)_\(wallet.name)"
+
+        do {
+            guard let mnemonic = try keychainService
+                .loadString(for: key)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !mnemonic.isEmpty else {
+                state = .noSeed(message: "Seed phrase not found for this wallet.")
+                return
+            }
+
+            let words = mnemonic
+                .split(whereSeparator: { $0.isWhitespace })
+                .map(String.init)
+            state = .loaded(words)
+        } catch {
+            state = .noSeed(message: "Failed to load seed phrase: \(error.localizedDescription)")
+        }
+    }
+}
+
+protocol BackupActiveWalletProviding {
+    func getActiveWallet() -> Wallet?
+}
+
+extension DefaultWalletRepository: BackupActiveWalletProviding {}
+
+private struct BackupAlertItem: Identifiable {
+    let id = UUID()
+    let message: String
+}
+
 struct BackupView: View {
+    @StateObject private var viewModel: BackupViewModel
     @State private var showSeedPhrase = false
-    
+    @State private var alertItem: BackupAlertItem?
+
+    init() {
+        let repository = DIContainer.shared.resolve(WalletRepositoryProtocol.self)!
+        let keychain = DIContainer.shared.resolve(KeychainServiceProtocol.self)!
+        _viewModel = StateObject(wrappedValue: BackupViewModel(
+            walletRepository: repository,
+            keychainService: keychain
+        ))
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 60))
                     .foregroundColor(.orange)
-                
+
                 Text("Backup Your Seed Phrase")
                     .font(.title2)
                     .fontWeight(.bold)
-                
+
                 Text("Your seed phrase is the master key to your wallet. Write it down and store it in a safe place.")
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
-                
-                if showSeedPhrase {
-                    VStack(spacing: 12) {
-                        ForEach(Array(mockSeedPhrase().enumerated()), id: \.offset) { index, word in
-                            HStack {
-                                Text("\(index + 1).")
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 30, alignment: .trailing)
-                                Text(word)
-                                    .font(.system(.body, design: .monospaced))
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                } else {
-                    Button("Show Seed Phrase") {
-                        showSeedPhrase = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                }
-                
+
+                contentView
+
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Never share your seed phrase", systemImage: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
@@ -518,11 +577,65 @@ struct BackupView: View {
             .padding()
         }
         .navigationTitle("Backup")
+        .onAppear { viewModel.loadSeedPhrase() }
+        .onChange(of: viewModel.state) { state in
+            switch state {
+            case .loaded:
+                alertItem = nil
+            case .noSeed(let message):
+                showSeedPhrase = false
+                alertItem = BackupAlertItem(message: message)
+            case .idle, .loading:
+                alertItem = nil
+            }
+        }
+        .alert(item: $alertItem) { item in
+            Alert(
+                title: Text("Seed Phrase Unavailable"),
+                message: Text(item.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
-    
-    func mockSeedPhrase() -> [String] {
-        ["abandon", "ability", "able", "about", "above", "absent",
-         "absorb", "abstract", "absurd", "abuse", "access", "accident"]
+
+    @ViewBuilder
+    private var contentView: some View {
+        switch viewModel.state {
+        case .loading, .idle:
+            ProgressView()
+        case .loaded(let words):
+            if showSeedPhrase {
+                seedPhraseList(words: words)
+            } else {
+                Button("Show Seed Phrase") {
+                    showSeedPhrase = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+        case .noSeed(let message):
+            Text(message)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func seedPhraseList(words: [String]) -> some View {
+        VStack(spacing: 12) {
+            ForEach(Array(words.enumerated()), id: \.offset) { index, word in
+                HStack {
+                    Text("\(index + 1).")
+                        .foregroundColor(.secondary)
+                        .frame(width: 30, alignment: .trailing)
+                    Text(word)
+                        .font(.system(.body, design: .monospaced))
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
     }
 }
 
