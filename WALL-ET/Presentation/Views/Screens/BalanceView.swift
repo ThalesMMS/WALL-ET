@@ -190,47 +190,79 @@ struct BalanceQuickActionButton: View {
 }
 
 struct BalanceWalletRowView: View {
-    let wallet: Wallet
+    @StateObject private var viewModel: BalanceWalletRowViewModel
     let showBalance: Bool
-    
-    private var totalBalance: Double {
-        wallet.accounts.reduce(0) { $0 + $1.balance.btcValue }
+
+    init(
+        wallet: Wallet,
+        showBalance: Bool,
+        currencyCode: String = "USD",
+        priceService: PriceDataServiceType = PriceDataService.shared
+    ) {
+        _viewModel = StateObject(
+            wrappedValue: BalanceWalletRowViewModel(
+                wallet: wallet,
+                currencyCode: currencyCode,
+                priceService: priceService
+            )
+        )
+        self.showBalance = showBalance
     }
-    
-    private var fiatBalance: Double {
-        totalBalance * 37000 // Mock exchange rate
-    }
-    
+
     var body: some View {
         HStack {
             Image(systemName: "bitcoinsign.circle.fill")
                 .font(.system(size: 40))
                 .foregroundColor(Color.Wallet.bitcoinOrange)
-            
+
             VStack(alignment: .leading, spacing: 4) {
-                Text(wallet.name)
+                Text(viewModel.wallet.name)
                     .font(.headline)
                     .foregroundColor(Color.Wallet.primaryText)
-                
-                Text(wallet.type.symbol)
+
+                Text(viewModel.wallet.type.symbol)
                     .font(.caption)
                     .foregroundColor(Color.Wallet.secondaryText)
             }
-            
+
             Spacer()
-            
-            CompactBalanceView(
-                btcAmount: totalBalance,
-                fiatAmount: fiatBalance,
-                currencyCode: "USD"
-            )
+
+            Group {
+                if showBalance {
+                    if viewModel.isLoading && viewModel.fiatBalance == nil {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                    } else if let errorMessage = viewModel.errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.trailing)
+                    } else if let fiatBalance = viewModel.fiatBalance {
+                        CompactBalanceView(
+                            btcAmount: viewModel.totalBalance,
+                            fiatAmount: fiatBalance,
+                            currencyCode: viewModel.currencyCode
+                        )
+                    } else {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                    }
+                } else {
+                    CompactBalanceView(
+                        btcAmount: viewModel.totalBalance,
+                        fiatAmount: viewModel.fiatBalance ?? 0,
+                        currencyCode: viewModel.currencyCode
+                    )
+                    .redacted(reason: .placeholder)
+                }
+            }
         }
         .padding()
         .background(Color.Wallet.secondaryBackground)
         .cornerRadius(Constants.UI.cornerRadius)
         .onAppear {
-            let addr = wallet.accounts.first?.address ?? ""
-            logInfo("Wallet row appear: name=\(wallet.name), firstAddress=\(addr.isEmpty ? "<empty>" : addr)")
+            let addr = viewModel.wallet.accounts.first?.address ?? ""
+            logInfo("Wallet row appear: name=\(viewModel.wallet.name), firstAddress=\(addr.isEmpty ? "<empty>" : addr)")
         }
     }
 }
