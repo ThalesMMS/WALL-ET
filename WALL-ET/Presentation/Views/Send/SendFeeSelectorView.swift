@@ -50,6 +50,7 @@ struct SendFeeSelectorView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .disabled(viewModel.isSending)
     }
 }
 

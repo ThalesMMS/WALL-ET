@@ -51,16 +51,20 @@ final class SendViewModel: ObservableObject {
     @Published var showConfirmation = false
     @Published var errorMessage: String?
     @Published var useMaxAmount = false
+    @Published var memo = ""
     @Published private(set) var btcPrice: Double = 0
     @Published private(set) var availableBalance: Double = 0
     @Published private(set) var estVBytes: Int = 140
     @Published private(set) var isAddressValid = false
     @Published private(set) var isAmountValid = false
+    @Published private(set) var isSending = false
 
     // MARK: - Services
     private let walletRepository: WalletRepositoryProtocol
     private let priceService: PriceServiceProtocol
     private let transactionService: TransactionService
+    private let sendBitcoinUseCase: SendBitcoinUseCaseProtocol
+    private var activeWallet: Wallet?
     private var didLoad = false
     private var isUpdatingAmounts = false
     private var isApplyingMaxAmount = false
@@ -70,6 +74,7 @@ final class SendViewModel: ObservableObject {
         walletRepository: WalletRepositoryProtocol? = nil,
         priceService: PriceServiceProtocol? = nil,
         transactionService: TransactionService? = nil,
+        sendBitcoinUseCase: SendBitcoinUseCaseProtocol? = nil,
         initialBalance: Double? = nil,
         initialPrice: Double? = nil,
         skipInitialLoad: Bool = false
@@ -96,6 +101,14 @@ final class SendViewModel: ObservableObject {
             self.transactionService = resolved
         } else {
             self.transactionService = TransactionService()
+        }
+
+        if let sendBitcoinUseCase {
+            self.sendBitcoinUseCase = sendBitcoinUseCase
+        } else if let resolved: SendBitcoinUseCaseProtocol = DIContainer.shared.resolve(SendBitcoinUseCaseProtocol.self) {
+            self.sendBitcoinUseCase = resolved
+        } else {
+            fatalError("SendBitcoinUseCaseProtocol dependency missing")
         }
 
         if let initialBalance {
@@ -187,9 +200,41 @@ final class SendViewModel: ObservableObject {
         )
     }
 
-    func confirmTransaction(completion: @escaping () -> Void) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            completion()
+    func confirmTransaction() async {
+        guard !isSending else { return }
+
+        isSending = true
+        errorMessage = nil
+
+        defer { isSending = false }
+
+        do {
+            let wallet = try await resolveActiveWallet()
+            let amountBTC = btcAmountDouble
+
+            guard amountBTC > 0 else {
+                errorMessage = NSLocalizedString("Enter a valid amount before sending.", comment: "")
+                return
+            }
+
+            let memoText = memo.trimmingCharacters(in: .whitespacesAndNewlines)
+            let request = SendTransactionRequest(
+                fromWallet: wallet,
+                toAddress: recipientAddress,
+                amount: amountBTC.bitcoinToSatoshis(),
+                feeRate: effectiveSatPerByte,
+                memo: memoText.isEmpty ? nil : memoText
+            )
+
+            _ = try await sendBitcoinUseCase.execute(request: request)
+            NotificationCenter.default.post(name: .transactionSent, object: nil)
+            showConfirmation = false
+        } catch {
+            if let localized = error as? LocalizedError, let description = localized.errorDescription {
+                errorMessage = description
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -294,6 +339,7 @@ final class SendViewModel: ObservableObject {
         do {
             if let wallet = try await walletRepository.getAllWallets().first,
                let address = wallet.accounts.first?.address {
+                activeWallet = wallet
                 let balance = try await walletRepository.getBalance(for: address)
                 availableBalance = balance.btcValue
             } else {
@@ -395,6 +441,31 @@ final class SendViewModel: ObservableObject {
         }
 
         validateAmount()
+    }
+
+    private func resolveActiveWallet() async throws -> Wallet {
+        if let activeWallet {
+            return activeWallet
+        }
+
+        let wallets = try await walletRepository.getAllWallets()
+        guard let wallet = wallets.first else {
+            throw SendViewModelError.missingWallet
+        }
+
+        activeWallet = wallet
+        return wallet
+    }
+}
+
+private enum SendViewModelError: LocalizedError {
+    case missingWallet
+
+    var errorDescription: String? {
+        switch self {
+        case .missingWallet:
+            return NSLocalizedString("Unable to find a wallet to send from.", comment: "")
+        }
     }
 }
 

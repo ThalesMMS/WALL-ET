@@ -53,7 +53,28 @@ struct SendReceiveView: View {
 }
 
 #Preview {
+    final class PreviewSendBitcoinUseCase: SendBitcoinUseCaseProtocol {
+        func execute(request: SendTransactionRequest) async throws -> Transaction {
+            Transaction(
+                id: UUID().uuidString,
+                hash: UUID().uuidString,
+                type: .send,
+                amount: request.amount,
+                fee: 0,
+                toAddress: request.toAddress,
+                memo: request.memo
+            )
+        }
+    }
+
     let coordinator = AppCoordinator()
-    return SendReceiveView()
+    let sendViewModel = SendViewModel(
+        sendBitcoinUseCase: PreviewSendBitcoinUseCase(),
+        initialBalance: 1.0,
+        initialPrice: 62000,
+        skipInitialLoad: true
+    )
+
+    return SendReceiveView(sendViewModel: sendViewModel)
         .environmentObject(coordinator)
 }
