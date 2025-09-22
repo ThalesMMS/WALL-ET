@@ -1,18 +1,83 @@
 import Foundation
 
+protocol WalletDataRepository: AnyObject {
+    func fetchWallets() async throws -> [Wallet]
+    func createWallet(name: String, type: WalletType) async throws -> Wallet
+    func importWallet(mnemonic: String, name: String, type: WalletType) async throws -> Wallet
+    func deleteWallet(by id: UUID) async throws
+    func getWallet(by id: UUID) async throws -> Wallet?
+    func listAllAddresses() -> [String]
+    func getActiveWallet() -> Wallet?
+    func setActiveWallet(id: UUID)
+    func ensureGapLimit(for walletId: UUID, gap: Int) async
+    func getNextReceiveAddress(for walletId: UUID, gap: Int) async -> String?
+}
+
+extension DefaultWalletRepository: WalletDataRepository {
+    func fetchWallets() async throws -> [Wallet] { try await getAllWallets() }
+}
+
+enum WalletExportError: LocalizedError {
+    case walletNotFound
+    case mnemonicMissing
+    case serializationFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .walletNotFound:
+            return "Wallet not found"
+        case .mnemonicMissing:
+            return "Seed phrase could not be located for this wallet"
+        case .serializationFailed:
+            return "Failed to serialize wallet export data"
+        }
+    }
+}
+
+struct WalletExportPayload: Codable, Equatable {
+    struct Metadata: Codable, Equatable {
+        enum Kind: String, Codable {
+            case software
+            case watchOnly
+        }
+
+        let id: String
+        let name: String
+        let kind: Kind
+        let network: String
+        let derivationPath: String?
+        let createdAt: Date
+        let exportedAt: Date
+    }
+
+    struct Address: Codable, Equatable {
+        let index: Int
+        let address: String
+    }
+
+    let version: Int
+    let metadata: Metadata
+    let addresses: [Address]
+    let mnemonic: String?
+}
+
 @MainActor
 final class WalletService: WalletServiceProtocol {
-    private let repo: DefaultWalletRepository
-    init(repository: DefaultWalletRepository? = nil) {
+    private let repo: WalletDataRepository
+    private let keychain: KeychainServiceProtocol
+
+    init(repository: WalletDataRepository? = nil, keychainService: KeychainServiceProtocol? = nil) {
+        let keychain = keychainService ?? KeychainService()
+        self.keychain = keychain
         if let repository = repository {
             self.repo = repository
         } else {
-            self.repo = DefaultWalletRepository(keychainService: KeychainService())
+            self.repo = DefaultWalletRepository(keychainService: keychain)
         }
     }
 
     func fetchWallets() async throws -> [WalletModel] {
-        let wallets = try await repo.getAllWallets()
+        let wallets = try await repo.fetchWallets()
         return wallets.map { w in
             let address = w.accounts.first?.address ?? ""
             return WalletModel(
@@ -96,7 +161,63 @@ final class WalletService: WalletServiceProtocol {
     }
 
     func updateWallet(_ wallet: WalletModel) async throws { /* Not needed for now */ }
-    func exportWallet(_ walletId: UUID) async throws -> String { "" }
+
+    func exportWallet(_ walletId: UUID) async throws -> String {
+        guard let wallet = try await repo.getWallet(by: walletId) else {
+            throw WalletExportError.walletNotFound
+        }
+
+        let addresses = wallet.accounts
+            .sorted { $0.index < $1.index }
+            .map { account in
+                WalletExportPayload.Address(index: account.index, address: account.address)
+            }
+
+        let metadata = WalletExportPayload.Metadata(
+            id: wallet.id.uuidString,
+            name: wallet.name,
+            kind: wallet.isWatchOnly ? .watchOnly : .software,
+            network: wallet.type == .testnet ? "testnet" : "mainnet",
+            derivationPath: wallet.isWatchOnly ? nil : (wallet.type == .testnet ? "m/84'/1'/0'" : "m/84'/0'/0'"),
+            createdAt: wallet.createdAt,
+            exportedAt: Date()
+        )
+
+        let mnemonic: String?
+        if wallet.isWatchOnly {
+            mnemonic = nil
+        } else {
+            let key = "\(Constants.Keychain.walletSeed)_\(wallet.name)"
+            guard let phrase = try keychain.loadString(for: key), !phrase.isEmpty else {
+                throw WalletExportError.mnemonicMissing
+            }
+            mnemonic = phrase
+        }
+
+        let payload = WalletExportPayload(
+            version: 1,
+            metadata: metadata,
+            addresses: addresses,
+            mnemonic: mnemonic
+        )
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let data: Data
+        do {
+            data = try encoder.encode(payload)
+        } catch {
+            throw WalletExportError.serializationFailed
+        }
+
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw WalletExportError.serializationFailed
+        }
+
+        return json
+    }
 
     // MARK: - Active wallet helpers
     func getActiveWallet() async -> WalletModel? {
