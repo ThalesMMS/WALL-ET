@@ -218,6 +218,17 @@ struct WalletDetailView: View {
         .onAppear {
             viewModel.loadData()
         }
+        .alert(
+            "Error",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
     }
 }
 
@@ -462,6 +473,7 @@ class WalletDetailViewModel: ObservableObject {
     @Published var showAdvancedFeatures = false
     @Published var currentBTCPrice: Double = 62000
     @Published var isLoading = false
+    @Published var errorMessage: String?
     
     private let walletId: String
     private let walletService: WalletServiceProtocol
@@ -578,7 +590,39 @@ class WalletDetailViewModel: ObservableObject {
     }
     
     func exportWallet() {
-        // Export wallet logic
+        guard let uuid = UUID(uuidString: walletId) else {
+            errorMessage = "Invalid wallet identifier"
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let exportContent = try await walletService.exportWallet(uuid)
+                let fileURL = try writeExportFile(named: wallet?.name ?? "wallet", contents: exportContent)
+                NotificationCenter.default.post(name: .shareFile, object: nil, userInfo: ["url": fileURL])
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func writeExportFile(named walletName: String, contents: String) throws -> URL {
+        guard let data = contents.data(using: .utf8) else {
+            throw WalletExportError.serializationFailed
+        }
+
+        let sanitizedBase = walletName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+            .lowercased()
+
+        let fileName = (sanitizedBase.isEmpty ? "wallet" : sanitizedBase) + "-export.wallet"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try data.write(to: url, options: .atomic)
+        return url
     }
     
     func showDeleteConfirmation() {
