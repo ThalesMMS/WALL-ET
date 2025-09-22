@@ -1,6 +1,11 @@
 import Foundation
 import Combine
 
+protocol PriceDataServiceType {
+    func fetchCurrentPrice(for currency: String) async -> PriceData?
+    var priceUpdatePublisher: PassthroughSubject<PriceData, Never> { get }
+}
+
 // MARK: - Price Service
 class PriceDataService {
     
@@ -153,6 +158,8 @@ class PriceDataService {
         }
     }
 }
+
+extension PriceDataService: PriceDataServiceType {}
 
 // MARK: - Data Models
 struct PriceData {
