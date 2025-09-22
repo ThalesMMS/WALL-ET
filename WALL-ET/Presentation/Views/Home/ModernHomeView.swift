@@ -11,10 +11,9 @@ extension DateFormatter {
 }
 
 struct ModernHomeView: View {
+    @EnvironmentObject var coordinator: AppCoordinator
     @StateObject private var viewModel = HomeViewModel()
     @State private var selectedTimeRange = TimeRange.day
-    @State private var showingReceive = false
-    @State private var showingSend = false
     
     enum TimeRange: String, CaseIterable {
         case day = "1D"
@@ -37,12 +36,6 @@ struct ModernHomeView: View {
         }
         .background(ModernTheme.Colors.background)
         .navigationBarHidden(true)
-        .sheet(isPresented: $showingReceive) {
-            ReceiveView()
-        }
-        .sheet(isPresented: $showingSend) {
-            SendView()
-        }
     }
     
     private var headerSection: some View {
@@ -188,25 +181,25 @@ struct ModernHomeView: View {
                 title: "Receive",
                 color: ModernTheme.Colors.success
             ) {
-                showingReceive = true
+                coordinator.showReceive()
             }
-            
+
             HomeActionButton(
                 icon: "arrow.up.circle.fill",
                 title: "Send",
                 color: ModernTheme.Colors.info
             ) {
-                showingSend = true
+                coordinator.showSend()
             }
-            
+
             // Removed Exchange (swap) per requirements
-            
+
             HomeActionButton(
                 icon: "qrcode",
                 title: "Scan",
                 color: ModernTheme.Colors.primary
             ) {
-                // TODO: Implement QR scanner
+                coordinator.showScanQR()
             }
         }
     }
@@ -325,11 +318,11 @@ struct EmptyTransactionView: View {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 40))
                 .foregroundColor(ModernTheme.Colors.textTertiary)
-            
+
             Text("No transactions yet")
                 .font(ModernTheme.Typography.callout)
                 .foregroundColor(ModernTheme.Colors.textSecondary)
-            
+
             Text("Your transactions will appear here")
                 .font(ModernTheme.Typography.caption)
                 .foregroundColor(ModernTheme.Colors.textTertiary)
@@ -337,4 +330,9 @@ struct EmptyTransactionView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, ModernTheme.Spacing.xl)
     }
+}
+
+#Preview {
+    ModernHomeView()
+        .environmentObject(AppCoordinator())
 }
