@@ -1,7 +1,12 @@
 import Foundation
 
 protocol CreateWalletUseCaseProtocol {
-    func execute(name: String, type: WalletType) async throws -> Wallet
+    func execute(name: String, type: WalletType) async throws -> CreateWalletResult
+}
+
+struct CreateWalletResult {
+    let wallet: Wallet
+    let mnemonic: String
 }
 
 final class CreateWalletUseCase: CreateWalletUseCaseProtocol {
@@ -13,7 +18,7 @@ final class CreateWalletUseCase: CreateWalletUseCaseProtocol {
         self.keychainService = keychainService
     }
     
-    func execute(name: String, type: WalletType) async throws -> Wallet {
+    func execute(name: String, type: WalletType) async throws -> CreateWalletResult {
         // Generate mnemonic (BIP39)
         let mnemonic = try MnemonicService.shared.generateMnemonic(strength: .words24)
         
@@ -25,7 +30,7 @@ final class CreateWalletUseCase: CreateWalletUseCaseProtocol {
         
         logInfo("Wallet created successfully: \(wallet.id)")
         
-        return wallet
+        return CreateWalletResult(wallet: wallet, mnemonic: mnemonic)
     }
     
     // Legacy placeholder removed; using MnemonicService instead
