@@ -1110,6 +1110,45 @@ enum ElectrumError: LocalizedError {
     }
 }
 
+// MARK: - Protocol Conformance
+extension ElectrumService: ElectrumClientProtocol {
+    func getUTXOs(for address: String) async throws -> [ElectrumUTXO] {
+        try await withCheckedThrowingContinuation { continuation in
+            getUTXOs(for: address) { continuation.resume(with: $0) }
+        }
+    }
+
+    func getTransaction(_ txid: String) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            getTransaction(txid) { continuation.resume(with: $0) }
+        }
+    }
+
+    func broadcastTransaction(_ rawTx: String) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            broadcastTransaction(rawTx) { continuation.resume(with: $0) }
+        }
+    }
+
+    func getCurrentBlockHeight() async throws -> Int {
+        try await withCheckedThrowingContinuation { continuation in
+            getCurrentBlockHeight { continuation.resume(with: $0) }
+        }
+    }
+
+    func getAddressHistory(for address: String) async throws -> [[String: Any]] {
+        try await withCheckedThrowingContinuation { continuation in
+            getAddressHistory(for: address) { continuation.resume(with: $0) }
+        }
+    }
+
+    func getBlockTimestamp(height: Int) async throws -> Int {
+        try await withCheckedThrowingContinuation { continuation in
+            getBlockTimestamp(height: height) { continuation.resume(with: $0) }
+        }
+    }
+}
+
 // MARK: - Extensions
 extension String {
     func hexStringToData() -> Data {
