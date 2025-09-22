@@ -4,6 +4,8 @@ import Foundation
 final class TransactionService: TransactionServiceProtocol {
     private let repo = DefaultWalletRepository(keychainService: KeychainService())
     private let electrum = ElectrumService.shared
+    private let feeOptimizer = FeeOptimizationService.shared
+    private let accelerationStore = TransactionAccelerationStore.shared
     private var didLogOneRawTx = false
     private var txDecodeCache: [String: DecodedTransaction] = [:]
     
@@ -197,7 +199,45 @@ final class TransactionService: TransactionServiceProtocol {
         return vbytes
     }
     
-    func speedUpTransaction(_ transactionId: String) async throws { }
+    func speedUpTransaction(_ transactionId: String) async throws {
+        guard let context = accelerationStore.context(for: transactionId) else {
+            throw TransactionError.accelerationContextMissing
+        }
+
+        let feeRates = try? await FeeService().getFeeRates()
+        var targetFeeRate = context.originalFeeRate + 1
+        if let rates = feeRates {
+            targetFeeRate = max(Double(rates.fastest), context.originalFeeRate + 1)
+        }
+        if targetFeeRate <= context.originalFeeRate {
+            targetFeeRate = context.originalFeeRate + 1
+        }
+
+        let rbf = try await feeOptimizer.createRBFTransaction(
+            originalTxid: transactionId,
+            newFeeRate: targetFeeRate,
+            ownedAddresses: context.ownedAddresses
+        )
+
+        var replacementTx = rbf.replacementTx
+        let builder = TransactionBuilder(network: electrum.currentNetwork)
+        try builder.signTransaction(&replacementTx, with: context.privateKeys, utxos: context.utxos)
+
+        let rawHex = replacementTx.serialize().hexString
+        let newTxid: String = try await withCheckedThrowingContinuation { cont in
+            electrum.broadcastTransaction(rawHex) { result in
+                switch result {
+                case .success(let txid):
+                    cont.resume(returning: txid)
+                case .failure(let error):
+                    cont.resume(throwing: error)
+                }
+            }
+        }
+
+        accelerationStore.completeAcceleration(for: transactionId, replacementTxid: newTxid)
+        txDecodeCache.removeValue(forKey: transactionId)
+    }
     func cancelTransaction(_ transactionId: String) async throws { }
     
     func exportTransactions(_ transactions: [TransactionModel], format: TransactionsViewModel.ExportFormat) async throws -> URL {

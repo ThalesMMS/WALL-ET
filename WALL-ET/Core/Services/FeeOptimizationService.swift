@@ -156,14 +156,16 @@ class FeeOptimizationService {
     
     struct RBFTransaction {
         let originalTx: BitcoinTransaction
+        let replacementTx: BitcoinTransaction
         let originalFee: Int64
         let newFee: Int64
         let feeBump: Double // Percentage increase
     }
-    
+
     func createRBFTransaction(
         originalTxid: String,
-        newFeeRate: Double
+        newFeeRate: Double,
+        ownedAddresses: Set<String>
     ) async throws -> RBFTransaction {
         // Fetch original transaction
         let originalTx = try await fetchTransaction(txid: originalTxid)
@@ -195,14 +197,18 @@ class FeeOptimizationService {
         var newTx = originalTx
         
         // Reduce change output to pay for higher fee
-        if let changeIndex = findChangeOutputIndex(in: originalTx) {
+        let network = electrumService.currentNetwork
+        if let changeIndex = findChangeOutputIndex(in: originalTx, ownedAddresses: ownedAddresses, network: network) {
             let feeDifference = newFee - originalFee
             // Recreate the change output with reduced value
             let oldOutput = newTx.outputs[changeIndex]
             let newValue = oldOutput.value - feeDifference
+            guard newValue >= 0 else {
+                throw FeeOptimizationError.insufficientFunds
+            }
             let newOutput = TransactionOutput(value: newValue, scriptPubKey: oldOutput.scriptPubKey)
             newTx.outputs[changeIndex] = newOutput
-            
+
             // Ensure change output is still above dust threshold
             if newTx.outputs[changeIndex].value < 546 {
                 // Remove change output if it's dust
@@ -212,11 +218,12 @@ class FeeOptimizationService {
             // No change output, need to reduce payment amount
             throw FeeOptimizationError.cannotBumpFee
         }
-        
+
         let feeBump = Double(newFee - originalFee) / Double(originalFee) * 100
-        
+
         return RBFTransaction(
             originalTx: originalTx,
+            replacementTx: newTx,
             originalFee: originalFee,
             newFee: newFee,
             feeBump: feeBump
@@ -354,11 +361,54 @@ class FeeOptimizationService {
         return total
     }
     
-    private func findChangeOutputIndex(in transaction: BitcoinTransaction) -> Int? {
-        // Heuristic: Change output is usually the last output
-        // or the one going back to our own address
-        // This is simplified - real implementation would check addresses
+    private func findChangeOutputIndex(
+        in transaction: BitcoinTransaction,
+        ownedAddresses: Set<String>,
+        network: BitcoinService.Network
+    ) -> Int? {
+        var candidate: Int?
+        for (index, output) in transaction.outputs.enumerated() {
+            guard let address = decodeAddress(scriptPubKey: output.scriptPubKey, network: network) else { continue }
+            if ownedAddresses.contains(address) {
+                candidate = index
+            }
+        }
+
+        if let candidate = candidate {
+            return candidate
+        }
+
         return transaction.outputs.count > 1 ? transaction.outputs.count - 1 : nil
+    }
+
+    private func decodeAddress(scriptPubKey spk: Data, network: BitcoinService.Network) -> String? {
+        let bytes = [UInt8](spk)
+
+        if bytes.count == 22 && bytes[0] == 0x00 && bytes[1] == 0x14 {
+            let prog = Data(bytes[2...])
+            return Bech32.encode(hrp: network.bech32HRP, version: 0, program: prog)
+        }
+
+        if bytes.count == 34 && bytes[0] == 0x51 && bytes[1] == 0x20 {
+            let prog = Data(bytes[2...])
+            return Bech32.encode(hrp: network.bech32HRP, version: 1, program: prog)
+        }
+
+        if bytes.count == 25 && bytes[0] == 0x76 && bytes[1] == 0xa9 && bytes[2] == 0x14 && bytes[23] == 0x88 && bytes[24] == 0xac {
+            let h160 = Data(bytes[3...22])
+            var payload = Data([network.p2pkhVersion])
+            payload.append(h160)
+            return Base58.encode(payload)
+        }
+
+        if bytes.count == 23 && bytes[0] == 0xa9 && bytes[1] == 0x14 && bytes[22] == 0x87 {
+            let h160 = Data(bytes[2...21])
+            var payload = Data([network.p2shVersion])
+            payload.append(h160)
+            return Base58.encode(payload)
+        }
+
+        return nil
     }
     
     private struct IndexedOutput { let index: Int; let output: TransactionOutput }
