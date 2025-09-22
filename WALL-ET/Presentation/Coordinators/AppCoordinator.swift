@@ -147,7 +147,9 @@ class AppCoordinator: ObservableObject {
         
         container.register(SendBitcoinUseCaseProtocol.self) {
             SendBitcoinUseCase(
-                walletRepository: self.container.resolve(WalletRepositoryProtocol.self)!
+                walletRepository: self.container.resolve(WalletRepositoryProtocol.self)!,
+                transactionService: self.container.resolve(TransactionServiceProtocol.self)!,
+                feeService: self.container.resolve(FeeServiceProtocol.self)!
             )
         }
     }
