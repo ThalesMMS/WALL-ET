@@ -157,3 +157,21 @@ private extension DefaultWalletRepository {
         return "m/84'/\(coin)'/0'"
     }
 }
+
+// MARK: - Protocol Conformance
+@MainActor
+extension DefaultWalletRepository: TransactionAccelerationRepository {
+    func addressInfos(for walletId: UUID) -> [WalletAddressInfo] {
+        getAddressInfos(for: walletId).map { info in
+            WalletAddressInfo(address: info.address, isChange: info.isChange, index: Int(info.index))
+        }
+    }
+
+    func walletMeta(for walletId: UUID) -> (name: String, basePath: String, network: BitcoinService.Network)? {
+        getWalletMeta(for: walletId)
+    }
+
+    func changeAddress(for walletId: UUID) async -> String? {
+        await getChangeAddress(for: walletId)
+    }
+}

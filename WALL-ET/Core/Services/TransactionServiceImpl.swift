@@ -2,10 +2,24 @@ import Foundation
 
 @MainActor
 final class TransactionService: TransactionServiceProtocol {
-    private let repo = DefaultWalletRepository(keychainService: KeychainService())
-    private let electrum = ElectrumService.shared
-    private var didLogOneRawTx = false
-    private var txDecodeCache: [String: DecodedTransaction] = [:]
+    private let repository: TransactionAccelerationRepository
+    private let electrum: ElectrumClientProtocol
+    private let feeOptimizer: FeeOptimizationServicing
+    private let transactionBuilderFactory: (BitcoinService.Network) -> TransactionBuilder
+    var didLogOneRawTx = false
+    var txDecodeCache: [String: DecodedTransaction] = [:]
+
+    init(
+        repository: TransactionAccelerationRepository = DefaultWalletRepository(keychainService: KeychainService()),
+        electrum: ElectrumClientProtocol = ElectrumService.shared,
+        feeOptimizer: FeeOptimizationServicing = FeeOptimizationService.shared,
+        transactionBuilderFactory: @escaping (BitcoinService.Network) -> TransactionBuilder = { TransactionBuilder(network: $0) }
+    ) {
+        self.repository = repository
+        self.electrum = electrum
+        self.feeOptimizer = feeOptimizer
+        self.transactionBuilderFactory = transactionBuilderFactory
+    }
     
     func fetchTransactions(page: Int, pageSize: Int) async throws -> [TransactionModel] {
         let all = try await fetchAllTransactions()
@@ -27,24 +41,16 @@ final class TransactionService: TransactionServiceProtocol {
     
     func sendBitcoin(to address: String, amount: Double, fee: Double, note: String?) async throws -> TransactionModel {
         // Resolve active wallet
-        let ws = WalletService()
-        let fallbackList = try? await ws.fetchWallets()
-        guard let active = await ws.getActiveWallet() ?? fallbackList?.first else {
-            throw NSError(domain: "TransactionService", code: -2, userInfo: [NSLocalizedDescriptionKey: "No wallets available"])
-        }
+        let active = try await resolveActiveWallet()
         // Gather addresses + metadata
-        let addressInfos = repo.getAddressInfos(for: active.id)
+        let addressInfos = repository.addressInfos(for: active.id)
         let allAddresses = addressInfos.map { $0.address }
         guard !allAddresses.isEmpty else { throw TransactionError.insufficientFunds }
         // Fetch UTXOs across all addresses
         let utxos: [ElectrumUTXO] = try await withThrowingTaskGroup(of: [ElectrumUTXO].self, returning: [ElectrumUTXO].self) { group in
             for addr in allAddresses {
                 group.addTask {
-                    try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[ElectrumUTXO], Error>) in
-                        ElectrumService.shared.getUTXOs(for: addr) { result in
-                            switch result { case .success(let u): cont.resume(returning: u); case .failure(let e): cont.resume(throwing: e) }
-                        }
-                    }
+                    try await self.loadUTXOs(for: addr)
                 }
             }
             var acc: [ElectrumUTXO] = []
@@ -82,7 +88,7 @@ final class TransactionService: TransactionServiceProtocol {
         let feeSats = best.1.feeSats
         let estVBytes = best.1.vbytes
         // Change address
-        let changeAddr = await repo.getChangeAddress(for: active.id) ?? (active.address)
+        let changeAddr = await repository.changeAddress(for: active.id) ?? (active.address)
         // Build UTXO inputs for builder
         let inputs: [UTXO] = selected.map { u in
             let addr = u.ownerAddress ?? changeAddr
@@ -90,8 +96,8 @@ final class TransactionService: TransactionServiceProtocol {
             return UTXO(outpoint: u.outpoint, value: u.value, scriptPubKey: spk, address: addr, confirmations: max(0, u.height))
         }
         // Build transaction
-        let builderNet: BitcoinService.Network = ElectrumService.shared.currentNetwork
-        let builder = TransactionBuilder(network: builderNet)
+        let builderNet: BitcoinService.Network = electrum.currentNetwork
+        let builder = transactionBuilderFactory(builderNet)
         var tx = try builder.buildTransaction(
             inputs: inputs,
             outputs: [(address: address, amount: amountSats)],
@@ -99,7 +105,7 @@ final class TransactionService: TransactionServiceProtocol {
             feeRate: feeRate
         )
         // Derive private keys for each input address from seed
-        guard let meta = repo.getWalletMeta(for: active.id) else {
+        guard let meta = repository.walletMeta(for: active.id) else {
             throw NSError(domain: "TransactionService", code: -3, userInfo: [NSLocalizedDescriptionKey: "Wallet metadata not found"])
         }
         let keyName = "\(Constants.Keychain.walletSeed)_\(meta.name)"
@@ -121,11 +127,7 @@ final class TransactionService: TransactionServiceProtocol {
         let raw = tx.serialize()
         let rawHex = raw.map { String(format: "%02x", $0) }.joined()
         // Broadcast
-        let txid: String = try await withCheckedThrowingContinuation { cont in
-            ElectrumService.shared.broadcastTransaction(rawHex) { result in
-                switch result { case .success(let id): cont.resume(returning: id); case .failure(let e): cont.resume(throwing: e) }
-            }
-        }
+        let txid = try await broadcastRawTransaction(rawHex)
         return TransactionModel(
             id: txid,
             type: .sent,
@@ -141,23 +143,15 @@ final class TransactionService: TransactionServiceProtocol {
     // Public estimator for UI (re-estimates after coin selection)
     func estimateFee(to address: String, amount: Double, feeRateSatPerVb: Int) async throws -> (vbytes: Int, feeSats: Int64) {
         // Resolve active wallet
-        let ws = WalletService()
-        let fallbackList = try? await ws.fetchWallets()
-        guard let active = await ws.getActiveWallet() ?? fallbackList?.first else {
-            throw NSError(domain: "TransactionService", code: -2, userInfo: [NSLocalizedDescriptionKey: "No wallets available"])
-        }
-        let addressInfos = repo.getAddressInfos(for: active.id)
+        let active = try await resolveActiveWallet()
+        let addressInfos = repository.addressInfos(for: active.id)
         let allAddresses = addressInfos.map { $0.address }
         guard !allAddresses.isEmpty else { throw TransactionError.insufficientFunds }
         // Fetch UTXOs across all addresses
         let utxos: [ElectrumUTXO] = try await withThrowingTaskGroup(of: [ElectrumUTXO].self, returning: [ElectrumUTXO].self) { group in
             for addr in allAddresses {
                 group.addTask {
-                    try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[ElectrumUTXO], Error>) in
-                        ElectrumService.shared.getUTXOs(for: addr) { result in
-                            switch result { case .success(let u): cont.resume(returning: u); case .failure(let e): cont.resume(throwing: e) }
-                        }
-                    }
+                    try await self.loadUTXOs(for: addr)
                 }
             }
             var acc: [ElectrumUTXO] = []
@@ -255,9 +249,9 @@ final class TransactionService: TransactionServiceProtocol {
         // Debug: reduce explored addresses to minimize log volume
         let debugGap = 3
         if let wallets = try? await WalletService().fetchWallets() {
-            for w in wallets { await repo.ensureGapLimit(for: w.id, gap: debugGap) }
+            for w in wallets { await repository.ensureGapLimit(for: w.id, gap: debugGap) }
         }
-        let addresses = repo.listAllAddresses()
+        let addresses = repository.listAllAddresses()
         guard !addresses.isEmpty else { return [] }
         let owned = Set(addresses)
         print("[TX] total owned addresses=\(owned.count)")
@@ -284,11 +278,7 @@ final class TransactionService: TransactionServiceProtocol {
         print("[TX] unique txids total=\(txids.count)")
         // Debug: log raw tx (hex) for just one txid to avoid huge logs
         if !didLogOneRawTx, let sample = txids.first {
-            let hex: String? = try? await withCheckedThrowingContinuation { cont in
-                electrum.getTransaction(sample) { result in
-                    switch result { case .success(let s): cont.resume(returning: s); case .failure(let e): cont.resume(throwing: e) }
-                }
-            }
+            let hex = try? await loadTransactionHex(sample)
             if let hex = hex {
                 let preview = hex.prefix(120)
                 print("[TX][RAW TX HEX SAMPLE] txid=\(sample) hex=\(preview)…")
@@ -296,11 +286,7 @@ final class TransactionService: TransactionServiceProtocol {
             }
         }
         // Current height
-        let currentHeight = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int, Error>) in
-            electrum.getCurrentBlockHeight { result in
-                switch result { case .success(let h): cont.resume(returning: h); case .failure(let e): cont.resume(throwing: e) }
-            }
-        }
+        let currentHeight = try await loadCurrentBlockHeight()
         print("[TX] current block height=\(currentHeight)")
         // Fetch raw transactions and build models
         let models: [TransactionModel] = try await withThrowingTaskGroup(of: TransactionModel?.self) { group in
@@ -320,44 +306,16 @@ final class TransactionService: TransactionServiceProtocol {
     
     
     private func fetchHistory(for address: String) async throws -> [(String, Int?)] {
-        try await withCheckedThrowingContinuation { cont in
-            electrum.getAddressHistory(for: address) { result in
-                switch result {
-                case .success(let arr):
-                    let tuples: [(String, Int?)] = arr.compactMap { item in
-                        guard let h = item["tx_hash"] as? String else { return nil }
-                        let height = (item["height"] as? Int).flatMap { $0 > 0 ? $0 : nil }
-                        return (h, height)
-                    }
-                    print("[TX] address=\(address) txids=\(tuples.count)")
-                    cont.resume(returning: tuples)
-                case .failure(let e): cont.resume(throwing: e)
-                }
-            }
+        let arr = try await loadAddressHistory(for: address)
+        let tuples: [(String, Int?)] = arr.compactMap { item in
+            guard let h = item["tx_hash"] as? String else { return nil }
+            let height = (item["height"] as? Int).flatMap { $0 > 0 ? $0 : nil }
+            return (h, height)
         }
+        print("[TX] address=\(address) txids=\(tuples.count)")
+        return tuples
     }
 
-    private func fetchAndDecodeTx(_ txid: String) async throws -> DecodedTransaction {
-        if let cached = txDecodeCache[txid] { return cached }
-        let rawHex: String = try await withCheckedThrowingContinuation { cont in
-            electrum.getTransaction(txid) { result in
-                switch result { case .success(let hex): cont.resume(returning: hex); case .failure(let e): cont.resume(throwing: e) }
-            }
-        }
-        let decoder = TransactionDecoder(network: electrum.currentNetwork)
-        let decoded = try decoder.decode(rawHex: rawHex)
-        txDecodeCache[txid] = decoded
-        return decoded
-    }
-    
-    private func scriptForAddress(_ address: String) -> Data? {
-        if address.starts(with: "bc1") || address.starts(with: "tb1") {
-            return BitcoinService().createP2WPKHScript(for: address)
-        } else {
-            return BitcoinService().createP2PKHScript(for: address)
-        }
-    }
-    
     private func buildModel(txid: String, owned: Set<String>, currentHeight: Int, knownBlockHeight: Int?) async throws -> TransactionModel? {
         let tx = try await fetchAndDecodeTx(txid)
         let height = knownBlockHeight
@@ -397,9 +355,7 @@ final class TransactionService: TransactionServiceProtocol {
         // Derive date from block header if available; fallback to now
         var date = Date()
         if let h = height {
-            if let ts: Int = try? await withCheckedThrowingContinuation({ (cont: CheckedContinuation<Int, Error>) in
-                electrum.getBlockTimestamp(height: h) { cont.resume(with: $0) }
-            }) {
+            if let ts = try? await loadBlockTimestamp(height: h) {
                 date = Date(timeIntervalSince1970: TimeInterval(ts))
             }
         }
