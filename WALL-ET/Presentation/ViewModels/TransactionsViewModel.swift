@@ -12,6 +12,7 @@ class TransactionsViewModel: ObservableObject {
     @Published var selectedTransaction: TransactionModel?
     @Published var showTransactionDetail = false
     @Published var errorMessage: String?
+    @Published var successMessage: String?
     
     // MARK: - Pagination
     @Published var currentPage = 1
@@ -181,25 +182,39 @@ class TransactionsViewModel: ObservableObject {
     
     func speedUpTransaction(_ transaction: TransactionModel) {
         guard transaction.status == .pending else { return }
-        
+
         Task {
             do {
+                successMessage = nil
+                errorMessage = nil
                 try await transactionService.speedUpTransaction(transaction.id)
+                successMessage = NSLocalizedString(
+                    "Transaction accelerated successfully.",
+                    comment: "Success message after speeding up a transaction"
+                )
                 refresh()
             } catch {
+                successMessage = nil
                 errorMessage = error.localizedDescription
             }
         }
     }
-    
+
     func cancelTransaction(_ transaction: TransactionModel) {
         guard transaction.status == .pending else { return }
-        
+
         Task {
             do {
+                successMessage = nil
+                errorMessage = nil
                 try await transactionService.cancelTransaction(transaction.id)
+                successMessage = NSLocalizedString(
+                    "Transaction canceled successfully.",
+                    comment: "Success message after canceling a transaction"
+                )
                 refresh()
             } catch {
+                successMessage = nil
                 errorMessage = error.localizedDescription
             }
         }

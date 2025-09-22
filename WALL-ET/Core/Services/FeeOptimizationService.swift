@@ -186,16 +186,16 @@ class FeeOptimizationService {
             outputs: originalTx.outputs.count,
             isSegwit: true
         )
-        let newFee = Int64(Double(txSize) * newFeeRate)
-        
+        let newFee = Int64(ceil(Double(txSize) * newFeeRate))
+
         // Ensure fee bump is at least 1 sat/byte higher
         guard newFee > originalFee else {
             throw FeeOptimizationError.insufficientFeeBump
         }
-        
+
         // Create new transaction with higher fee
         var newTx = originalTx
-        
+
         // Reduce change output to pay for higher fee
         let network = electrumService.currentNetwork
         if let changeIndex = findChangeOutputIndex(in: originalTx, ownedAddresses: ownedAddresses, network: network) {
@@ -219,13 +219,20 @@ class FeeOptimizationService {
             throw FeeOptimizationError.cannotBumpFee
         }
 
-        let feeBump = Double(newFee - originalFee) / Double(originalFee) * 100
+        let newOutputTotal = newTx.outputs.reduce(0) { $0 + $1.value }
+        let actualNewFee = inputTotal - newOutputTotal
+
+        guard actualNewFee > originalFee else {
+            throw FeeOptimizationError.insufficientFeeBump
+        }
+
+        let feeBump = Double(actualNewFee - originalFee) / Double(originalFee) * 100
 
         return RBFTransaction(
             originalTx: originalTx,
             replacementTx: newTx,
             originalFee: originalFee,
-            newFee: newFee,
+            newFee: actualNewFee,
             feeBump: feeBump
         )
     }
@@ -242,18 +249,21 @@ class FeeOptimizationService {
     
     func createCPFPTransaction(
         parentTxid: String,
-        targetFeeRate: Double
+        targetFeeRate: Double,
+        destinationAddress: String,
+        ownedAddresses: Set<String>
     ) async throws -> CPFPTransaction {
-        // Fetch parent transaction
-        let parentTx = try await fetchTransaction(txid: parentTxid)
-        
-        // Find unspent outputs from parent transaction
-        let unspentOutputs = try await findUnspentOutputs(from: parentTxid)
-        
+        // Decode parent transaction once to reuse structure and metadata
+        let decodedParent = try await decodeTransaction(txid: parentTxid)
+        let parentTx = mapToBitcoinTransaction(decodedParent)
+
+        // Find unspent outputs from parent transaction that belong to the wallet
+        let unspentOutputs = findUnspentOutputs(in: decodedParent, ownedAddresses: ownedAddresses)
+
         guard !unspentOutputs.isEmpty else {
             throw FeeOptimizationError.noUnspentOutputs
         }
-        
+
         // Calculate parent fee
         let parentInputTotal = try await calculateInputTotal(for: parentTx)
         let parentOutputTotal = parentTx.outputs.reduce(0) { $0 + $1.value }
@@ -270,24 +280,42 @@ class FeeOptimizationService {
         // Child must pay for both itself and make up for parent's low fee
         let childSize = calculateTransactionSize(
             inputs: unspentOutputs.count,
-            outputs: 1, // Single output to self
+            outputs: 1, // Single output to wallet
             isSegwit: true
         )
-        
+
         let totalSize = parentSize + childSize
-        let targetTotalFee = Int64(Double(totalSize) * targetFeeRate)
+        let targetTotalFee = Int64(ceil(Double(totalSize) * targetFeeRate))
         let childFee = targetTotalFee - parentFee
-        
+
         // Ensure child fee is positive and sufficient
         guard childFee > 0 else {
             throw FeeOptimizationError.parentFeeAlreadySufficient
         }
-        
+
         // Create child transaction
+        let inputAmount = unspentOutputs.reduce(0) { $0 + $1.output.value }
+        guard childFee < inputAmount else {
+            throw FeeOptimizationError.insufficientFunds
+        }
+
+        let outputAmount = inputAmount - childFee
+        guard outputAmount >= TransactionBuilder.Constants.dustLimit else {
+            throw FeeOptimizationError.cannotBumpFee
+        }
+
+        let scriptPubKey = try scriptPubKey(for: destinationAddress)
+
+        let childOutput = TransactionOutput(
+            value: outputAmount,
+            scriptPubKey: scriptPubKey
+        )
+
+        let parentTxidData = Data(parentTxid.hexStringToData().reversed())
         let childInputs: [TransactionInput] = unspentOutputs.map { indexed in
             TransactionInput(
                 previousOutput: Outpoint(
-                    txid: Data(parentTxid.hexStringToData().reversed()),
+                    txid: parentTxidData,
                     vout: UInt32(indexed.index)
                 ),
                 scriptSig: Data(),
@@ -295,29 +323,18 @@ class FeeOptimizationService {
                 witness: []
             )
         }
-        
-        let inputAmount = unspentOutputs.reduce(0) { $0 + $1.output.value }
-        let outputAmount = inputAmount - childFee
-        
-        // Ensure output is above dust threshold
-        guard outputAmount >= 546 else {
-            throw FeeOptimizationError.insufficientFunds
-        }
-        
-        let childOutput = TransactionOutput(
-            value: outputAmount,
-            scriptPubKey: Data() // Would be filled with actual script
-        )
-        
+
         let childTx = BitcoinTransaction(
             version: 2,
             inputs: childInputs,
             outputs: [childOutput],
+            witness: Array(repeating: [], count: childInputs.count),
             lockTime: 0
         )
-        
-        let effectiveFeeRate = Double(targetTotalFee) / Double(totalSize)
-        
+
+        let totalFee = parentFee + childFee
+        let effectiveFeeRate = Double(totalFee) / Double(totalSize)
+
         return CPFPTransaction(
             parentTxid: parentTxid,
             childTx: childTx,
@@ -330,34 +347,21 @@ class FeeOptimizationService {
     // MARK: - Helper Methods
     
     private func fetchTransaction(txid: String) async throws -> BitcoinTransaction {
-        return try await withCheckedThrowingContinuation { continuation in
-            electrumService.getTransaction(txid) { result in
-                switch result {
-                case .success(let rawTx):
-                    // Parse raw transaction
-                    if let tx = self.parseRawTransaction(rawTx) {
-                        continuation.resume(returning: tx)
-                    } else {
-                        continuation.resume(throwing: FeeOptimizationError.invalidTransaction)
-                    }
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        let decoded = try await decodeTransaction(txid: txid)
+        return mapToBitcoinTransaction(decoded)
     }
     
     private func calculateInputTotal(for transaction: BitcoinTransaction) async throws -> Int64 {
         var total: Int64 = 0
-        
+
         for input in transaction.inputs {
             // Fetch previous output to get amount
-            let prevTxid = input.previousOutput.txid.hexString
+            let prevTxid = Data(input.previousOutput.txid.reversed()).hexString
             let prevTx = try await fetchTransaction(txid: prevTxid)
             let prevOutput = prevTx.outputs[Int(input.previousOutput.vout)]
             total += prevOutput.value
         }
-        
+
         return total
     }
     
@@ -412,21 +416,68 @@ class FeeOptimizationService {
     }
     
     private struct IndexedOutput { let index: Int; let output: TransactionOutput }
-    private func findUnspentOutputs(from txid: String) async throws -> [IndexedOutput] {
-        // This would check which outputs from the transaction are unspent
-        // Simplified for example
-        return []
+    private func findUnspentOutputs(in transaction: DecodedTransaction, ownedAddresses: Set<String>) -> [IndexedOutput] {
+        transaction.outputs.enumerated().compactMap { index, output in
+            guard let address = output.address, ownedAddresses.contains(address) else {
+                return nil
+            }
+            let txOutput = TransactionOutput(value: output.value, scriptPubKey: output.scriptPubKey)
+            return IndexedOutput(index: index, output: txOutput)
+        }
     }
-    
-    private func parseRawTransaction(_ rawTx: String) -> BitcoinTransaction? {
-        // Parse raw transaction hex
-        // Simplified - would use actual parsing logic
+
+    private func decodeTransaction(txid: String) async throws -> DecodedTransaction {
+        let rawHex: String = try await withCheckedThrowingContinuation { continuation in
+            electrumService.getTransaction(txid) { result in
+                continuation.resume(with: result)
+            }
+        }
+
+        let decoder = TransactionDecoder(network: electrumService.currentNetwork)
+        do {
+            return try decoder.decode(rawHex: rawHex)
+        } catch {
+            throw FeeOptimizationError.invalidTransaction
+        }
+    }
+
+    private func mapToBitcoinTransaction(_ decoded: DecodedTransaction) -> BitcoinTransaction {
+        let inputs: [TransactionInput] = decoded.inputs.map { input in
+            let txidData = Data(input.prevTxid.hexStringToData().reversed())
+            let outpoint = Outpoint(txid: txidData, vout: UInt32(input.vout))
+            return TransactionInput(
+                previousOutput: outpoint,
+                scriptSig: Data(),
+                sequence: input.sequence,
+                witness: []
+            )
+        }
+
+        let outputs: [TransactionOutput] = decoded.outputs.map { output in
+            TransactionOutput(value: output.value, scriptPubKey: output.scriptPubKey)
+        }
+
         return BitcoinTransaction(
-            version: 2,
-            inputs: [],
-            outputs: [],
-            lockTime: 0
+            version: decoded.version,
+            inputs: inputs,
+            outputs: outputs,
+            witness: Array(repeating: [], count: inputs.count),
+            lockTime: decoded.lockTime
         )
+    }
+
+    private func scriptPubKey(for address: String) throws -> Data {
+        let service = BitcoinService(network: electrumService.currentNetwork)
+
+        if let segwit = service.createP2WPKHScript(for: address) {
+            return segwit
+        }
+
+        if let legacy = service.createP2PKHScript(for: address) {
+            return legacy
+        }
+
+        throw FeeOptimizationError.invalidTransaction
     }
     
     // MARK: - Fee Analysis
