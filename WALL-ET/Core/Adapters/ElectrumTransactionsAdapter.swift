@@ -1,6 +1,21 @@
 import Foundation
 import Combine
 
+/// Adapter responsible for translating Electrum history endpoints into paginated `TransactionModel` updates.
+///
+/// The adapter maintains an in-memory index (`heightMap` + `sortedTxids`) that is bootstrapped from the wallet's known
+/// addresses. The index is populated in throttled batches (`maxConcurrentHistory`) to avoid overwhelming the Electrum
+/// server; once the initial page is satisfied, the remaining addresses continue scanning in the background. Ordering is
+/// refined with per-block positions fetched on demand, while decoded transactions, intra-block positions, and header
+/// timestamps are cached (`txDecodeCache`, `posCache`, `headerTsCache`) to minimise redundant work across requests.
+///
+/// All shared mutable state is protected by `mapLock`, which guarantees thread-safety when the adapter is driven from
+/// Combine callbacks and structured-concurrency tasks. Consumers are expected to interact with the adapter from any
+/// queue, but read-only publishers (`itemsUpdatedPublisher`, `lastBlockUpdatedPublisher`) emit on the main run loop.
+///
+/// Index and cache snapshots are persisted under the caches directory for the active network so the adapter can restore
+/// the last known state after a cold start. Persisted snapshots are treated as best-effort hints and are invalidated on
+/// reorg or address changes.
 final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
     private let electrum = ElectrumService.shared
     private var cancellables = Set<AnyCancellable>()
@@ -9,7 +24,12 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
     private let itemsUpdatedSubject = PassthroughSubject<[TransactionModel], Never>()
     private let lastBlockUpdatedSubject = PassthroughSubject<Void, Never>()
 
+    /// Emits partial batches of `TransactionModel` decoded during pagination. Subscribers should merge these with the
+    /// primary `transactionsSingle` response—typically on the main thread—for progressive UI updates.
     var itemsUpdatedPublisher: AnyPublisher<[TransactionModel], Never> { itemsUpdatedSubject.eraseToAnyPublisher() }
+
+    /// Emits whenever Electrum reports a new best block. Useful for refreshing confirmation counts in view models.
+    /// Values are delivered on the main run loop and do not carry payloads beyond the timing signal.
     var lastBlockUpdatedPublisher: AnyPublisher<Void, Never> { lastBlockUpdatedSubject.eraseToAnyPublisher() }
 
     private(set) var lastBlockInfo: (height: Int, timestamp: Int)?
@@ -54,6 +74,15 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         loadCachesFromDisk()
     }
 
+    /// Returns a page of transactions ordered by height (descending) and intra-block position.
+    /// - Parameters:
+    ///   - paginationData: Cursor produced by `makeCursor(height:txid:)`. When `nil`, the first page is returned.
+    ///   - limit: Maximum number of entries requested for this page.
+    /// - Returns: A stable, date-sorted collection of `TransactionModel` values.
+    /// - Throws: Errors from Electrum when history, transactions, or block metadata cannot be fetched.
+    ///
+    /// Shared maps are guarded by `mapLock` and heavy work is spread across bounded task groups, making the method safe to
+    /// call concurrently. Partial updates may be published through `itemsUpdatedPublisher` while the final page is built.
     func transactionsSingle(paginationData: String?, limit: Int) async throws -> [TransactionModel] {
         await ensureIndex(minCount: limit)
         // Determine slice after cursor (height,index) cursor for stability
@@ -109,6 +138,13 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
     }
 
     // MARK: - Index
+    /// Ensures the index is populated before serving a page request.
+    /// - Parameter minCount: Minimum number of discovered txids required before returning control to the caller.
+    ///
+    /// History requests run in throttled batches (`maxConcurrentHistory`), updating `heightMap`/`sortedTxids` under
+    /// `mapLock`. Additional batches continue asynchronously so pagination can proceed once the initial `minCount` is met.
+    /// Failures from Electrum are tolerated via `fetchHistorySafe`, meaning the index may contain partial data that is
+    /// later healed when retries succeed.
     private func ensureIndex(minCount: Int) async {
         if !indexInvalidated, !sortedTxids.isEmpty { return }
         indexInvalidated = false
@@ -166,6 +202,7 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         }
     }
 
+    /// Fetches history for an address and swallows errors by returning an empty array. Only positive heights are kept.
     private func fetchHistorySafe(for address: String) async -> [(String, Int?)] {
         await withCheckedContinuation { cont in
             electrum.getAddressHistory(for: address) { result in
@@ -184,6 +221,7 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         }
     }
 
+    /// Fetches address history and surfaces Electrum failures to the caller.
     private func fetchHistory(for address: String) async throws -> [(String, Int?)] {
         try await withCheckedThrowingContinuation { cont in
             electrum.getAddressHistory(for: address) { result in
@@ -201,6 +239,7 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         }
     }
 
+    /// Retrieves the latest block height reported by Electrum.
     private func currentTipHeight() async throws -> Int {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int, Error>) in
             electrum.getCurrentBlockHeight { cont.resume(with: $0) }
@@ -208,6 +247,7 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
     }
 
     // MARK: - Build Model (local decode)
+    /// Fetches and decodes a transaction, leveraging `txDecodeCache` to avoid redundant decoding work.
     private func fetchAndDecodeTx(_ txid: String) async throws -> DecodedTransaction {
         if let c = txDecodeCache.get(txid) { return c }
         let rawHex: String = try await withCheckedThrowingContinuation { cont in
@@ -219,6 +259,14 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         return decoded
     }
 
+    /// Builds a `TransactionModel` with wallet-aware metadata, confirmations, and persisted statistics.
+    /// - Parameters:
+    ///   - txid: Transaction identifier to decode.
+    ///   - owned: Wallet addresses used for direction detection.
+    ///   - currentHeight: Latest chain height to compute confirmations.
+    ///   - knownBlockHeight: Optional cached block height from the index.
+    /// - Returns: A `TransactionModel` instance or `nil` when decoding fails mid-flight.
+    /// - Throws: Propagates Electrum or decoding failures.
     private func buildModel(txid: String, owned: Set<String>, currentHeight: Int, knownBlockHeight: Int?) async throws -> TransactionModel? {
         let tx = try await fetchAndDecodeTx(txid)
         let height = knownBlockHeight
@@ -279,6 +327,13 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
     }
 
     // Refine ordering with intra-block position when available
+    /// Refines the order of `ids` by querying intra-block positions for confirmed transactions.
+    /// - Parameter ids: Txids to reorder while preserving unconfirmed entries.
+    /// - Returns: Identifiers sorted deterministically by height, position, then txid.
+    /// - Throws: Errors from Electrum once retries in `retrying` are exhausted.
+    ///
+    /// Uses `mapLock` when reading and mutating `posCache` to keep state coherent across concurrent pagination tasks. Any
+    /// newly discovered positions trigger `persistCaches()` so subsequent launches benefit from the results.
     private func refineOrderWithPositions(ids: [String]) async throws -> [String] {
         // Group by height
         var groups: [Int: [String]] = [:]
@@ -333,6 +388,7 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         return result
     }
 
+    /// Asks Electrum for a transaction's position within the block at `height`.
     private func getPosition(txid: String, height: Int) async throws -> Int {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int, Error>) in
             electrum.getTransactionPosition(txid: txid, height: height) { cont.resume(with: $0) }
@@ -408,6 +464,7 @@ private extension ElectrumTransactionsAdapter {
         struct Item: Codable { let txid: String; let height: Int? }
     }
 
+    /// Location for the persisted transaction index scoped to the active network.
     func indexURL() -> URL? {
         let fm = FileManager.default
         guard let dir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
@@ -415,6 +472,7 @@ private extension ElectrumTransactionsAdapter {
         return dir.appendingPathComponent("tx_index_\(net).json")
     }
 
+    /// Persists the in-memory index to disk. Failures are logged but do not interrupt callers.
     func saveIndexToDisk() {
         guard let url = indexURL() else { return }
         let net = electrum.currentNetwork == .mainnet ? "mainnet" : "testnet"
@@ -428,6 +486,7 @@ private extension ElectrumTransactionsAdapter {
         }
     }
 
+    /// Loads the persisted index if it matches the active network, providing a faster warm start.
     func loadIndexFromDisk() {
         guard let url = indexURL(), let data = try? Data(contentsOf: url) else { return }
         do {
@@ -440,6 +499,7 @@ private extension ElectrumTransactionsAdapter {
         } catch { /* ignore */ }
     }
 
+    /// Location for persisting auxiliary caches (positions and header timestamps) per network.
     func cachesURL() -> URL? {
         let fm = FileManager.default
         guard let dir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
@@ -449,6 +509,7 @@ private extension ElectrumTransactionsAdapter {
 
     struct PersistedCaches: Codable { let positions: [String: Int]; let headers: [Int: Int] }
 
+    /// Persists `posCache` and `headerTsCache` snapshots, synchronising access with `mapLock`.
     func persistCaches() {
         guard let url = cachesURL() else { return }
         // Snapshot under lock to avoid races
@@ -457,6 +518,7 @@ private extension ElectrumTransactionsAdapter {
         if let data = try? JSONEncoder().encode(payload) { try? data.write(to: url, options: Data.WritingOptions.atomic) }
     }
 
+    /// Restores cached positions and header timestamps if a snapshot exists.
     func loadCachesFromDisk() {
         guard let url = cachesURL(), let data = try? Data(contentsOf: url) else { return }
         if let decoded = try? JSONDecoder().decode(PersistedCaches.self, from: data) {
@@ -466,6 +528,7 @@ private extension ElectrumTransactionsAdapter {
 
     }
 
+    /// Retrieves wallet-owned addresses on the main actor, keeping repository access serialised.
     func fetchOwnedAddresses() async -> [String] {
         await MainActor.run {
             let repo = DefaultWalletRepository(keychainService: KeychainService())
@@ -474,6 +537,13 @@ private extension ElectrumTransactionsAdapter {
     }
 
     // Exponential backoff retry helper
+    /// Retries an asynchronous Electrum call with exponential backoff.
+    /// - Parameters:
+    ///   - attempts: Maximum number of attempts before surfacing the last error.
+    ///   - initialDelayMs: Initial delay in milliseconds between attempts.
+    ///   - factor: Multiplier applied to the delay after each failure.
+    ///   - operation: Asynchronous closure to execute.
+    /// - Throws: The last captured error if all attempts fail.
     func retrying<T>(attempts: Int = 3, initialDelayMs: UInt64 = 200, factor: Double = 2.0, operation: @escaping () async throws -> T) async throws -> T {
         var delay = initialDelayMs
         var lastError: Error?
