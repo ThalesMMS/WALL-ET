@@ -64,6 +64,28 @@ struct TransactionsView: View {
             }
             .sheet(isPresented: $showCreateSheet, onDismiss: { loadWallets() }) { CreateWalletView() }
             .sheet(isPresented: $showImportSheet, onDismiss: { loadWallets() }) { ImportWalletView() }
+            .alert(
+                "Error",
+                isPresented: Binding(
+                    get: { txvm.errorMessage != nil },
+                    set: { if !$0 { txvm.errorMessage = nil } }
+                )
+            ) {
+                Button("OK") { txvm.errorMessage = nil }
+            } message: {
+                Text(txvm.errorMessage ?? "")
+            }
+            .alert(
+                "Success",
+                isPresented: Binding(
+                    get: { txvm.successMessage != nil },
+                    set: { if !$0 { txvm.successMessage = nil } }
+                )
+            ) {
+                Button("OK") { txvm.successMessage = nil }
+            } message: {
+                Text(txvm.successMessage ?? "")
+            }
         }
     }
 
