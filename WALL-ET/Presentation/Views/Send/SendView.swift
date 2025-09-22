@@ -23,7 +23,7 @@ struct SendView: View {
                     .cornerRadius(12)
                     .font(.headline)
                 }
-                .disabled(!viewModel.isReviewEnabled)
+                .disabled(!viewModel.isReviewEnabled || viewModel.isSending)
             }
             .padding()
         }
@@ -34,7 +34,10 @@ struct SendView: View {
         )) {
             SendTransactionConfirmationView(
                 details: viewModel.confirmationDetails(),
-                onConfirm: viewModel.confirmTransaction,
+                onConfirm: {
+                    await viewModel.confirmTransaction()
+                    return !viewModel.showConfirmation
+                },
                 onCancel: viewModel.dismissConfirmation
             )
         }
@@ -178,7 +181,26 @@ struct SendView: View {
 }
 
 #Preview {
-    let viewModel = SendViewModel(initialBalance: 1.23456789, initialPrice: 62000, skipInitialLoad: true)
+    final class PreviewSendBitcoinUseCase: SendBitcoinUseCaseProtocol {
+        func execute(request: SendTransactionRequest) async throws -> Transaction {
+            Transaction(
+                id: UUID().uuidString,
+                hash: UUID().uuidString,
+                type: .send,
+                amount: request.amount,
+                fee: 0,
+                toAddress: request.toAddress,
+                memo: request.memo
+            )
+        }
+    }
+
+    let viewModel = SendViewModel(
+        sendBitcoinUseCase: PreviewSendBitcoinUseCase(),
+        initialBalance: 1.23456789,
+        initialPrice: 62000,
+        skipInitialLoad: true
+    )
     viewModel.recipientAddress = "tb1qexampleaddress1234567890"
     viewModel.btcAmount = "0.01000000"
     viewModel.fiatAmount = "620.00"

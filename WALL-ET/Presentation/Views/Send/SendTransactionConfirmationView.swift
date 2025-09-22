@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SendTransactionConfirmationView: View {
     let details: TransactionConfirmationDetails
-    let onConfirm: (@escaping () -> Void) -> Void
+    let onConfirm: () async -> Bool
     let onCancel: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -84,9 +84,14 @@ struct SendTransactionConfirmationView: View {
     private func confirm() {
         guard !isProcessing else { return }
         isProcessing = true
-        onConfirm {
-            isProcessing = false
-            close()
+        Task {
+            let shouldClose = await onConfirm()
+            await MainActor.run {
+                isProcessing = false
+                if shouldClose {
+                    close()
+                }
+            }
         }
     }
 
