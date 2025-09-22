@@ -3,9 +3,12 @@ import LocalAuthentication
 
 struct UnlockView: View {
     @Binding var isLocked: Bool
-    @State private var password = ""
-    @State private var showError = false
-    @State private var errorMessage = ""
+    @StateObject private var viewModel: UnlockViewModel
+
+    init(isLocked: Binding<Bool>, viewModel: UnlockViewModel = UnlockViewModel()) {
+        self._isLocked = isLocked
+        self._viewModel = StateObject(wrappedValue: viewModel)
+    }
     
     var body: some View {
         VStack(spacing: 30) {
@@ -24,12 +27,12 @@ struct UnlockView: View {
                 .foregroundColor(.secondary)
             
             VStack(spacing: 20) {
-                SecureField("Enter Password", text: $password)
+                SecureField("Enter PIN", text: $viewModel.password)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .onSubmit {
                         unlock()
                     }
-                
+
                 HStack(spacing: 15) {
                     Button(action: authenticateWithBiometrics) {
                         Label("Face ID", systemImage: "faceid")
@@ -43,7 +46,7 @@ struct UnlockView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(password.isEmpty)
+                    .disabled(viewModel.password.isEmpty)
                 }
             }
             .padding(.horizontal, 40)
@@ -52,10 +55,10 @@ struct UnlockView: View {
             Spacer()
         }
         .padding()
-        .alert("Error", isPresented: $showError) {
+        .alert("Error", isPresented: $viewModel.showError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(errorMessage)
+            Text(viewModel.errorMessage)
         }
         .onAppear {
             authenticateWithBiometrics()
@@ -74,22 +77,18 @@ struct UnlockView: View {
                     if success {
                         isLocked = false
                     } else if let error = authenticationError {
-                        errorMessage = error.localizedDescription
-                        showError = true
+                        viewModel.presentError(message: error.localizedDescription)
                     }
                 }
             }
         }
     }
-    
+
     private func unlock() {
-        // TODO: Implement actual password verification
-        // For now, any non-empty password unlocks
-        if !password.isEmpty {
-            isLocked = false
-        } else {
-            errorMessage = "Please enter a password"
-            showError = true
+        viewModel.unlock { success in
+            if success {
+                isLocked = false
+            }
         }
     }
 }

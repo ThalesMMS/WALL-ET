@@ -126,15 +126,22 @@ class AuthenticationManager: ObservableObject {
         if let pin = pin {
             let isValid = secureStorage.verifyPIN(pin)
             isAuthenticated = isValid
-            
+
             if isValid {
                 startSessionTimer()
             }
-            
+
             completion?(isValid)
         } else {
             completion?(false)
         }
+    }
+
+    var isPINConfigured: Bool {
+        settingsRepository.getBoolSetting(
+            key: SettingsRepository.SettingsKey.pinEnabled,
+            defaultValue: false
+        )
     }
     
     func setPIN(_ pin: String, completion: @escaping (Result<Void, Error>) -> Void) {
