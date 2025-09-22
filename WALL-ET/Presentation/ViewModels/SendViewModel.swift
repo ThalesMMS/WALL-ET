@@ -49,6 +49,7 @@ final class SendViewModel: ObservableObject {
     }
     @Published var showScanner = false
     @Published var showConfirmation = false
+    @Published var errorMessage: String?
     @Published var useMaxAmount = false
     @Published private(set) var btcPrice: Double = 0
     @Published private(set) var availableBalance: Double = 0
@@ -121,6 +122,31 @@ final class SendViewModel: ObservableObject {
         if let pasteString = UIPasteboard.general.string {
             recipientAddress = pasteString
         }
+    }
+
+    func handleScannedCode(_ code: String) {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer { showScanner = false }
+
+        guard !trimmed.isEmpty else {
+            errorMessage = NSLocalizedString("Scanned code is empty.", comment: "")
+            return
+        }
+
+        errorMessage = nil
+
+        if let uri = parseBitcoinURI(from: trimmed) {
+            applyScannedBitcoinURI(uri)
+            return
+        }
+
+        if isLikelyBitcoinAddress(trimmed) {
+            recipientAddress = trimmed
+            useMaxAmount = false
+            return
+        }
+
+        errorMessage = NSLocalizedString("Unsupported QR code content.", comment: "")
     }
 
     func toggleMaxAmount() {
@@ -196,6 +222,65 @@ final class SendViewModel: ObservableObject {
     }
 
     // MARK: - Private Helpers
+    private func parseBitcoinURI(from string: String) -> QRCodeService.BitcoinURI? {
+        if let uri = QRCodeService.shared.parseBitcoinURI(string) {
+            return uri
+        }
+
+        let prefix = "bitcoin:"
+        guard string.lowercased().hasPrefix(prefix), string.count > prefix.count else {
+            return nil
+        }
+
+        let remainderIndex = string.index(string.startIndex, offsetBy: prefix.count)
+        let remainder = string[remainderIndex...]
+        let normalized = prefix + remainder
+        return QRCodeService.shared.parseBitcoinURI(normalized)
+    }
+
+    private func applyScannedBitcoinURI(_ uri: QRCodeService.BitcoinURI) {
+        guard !uri.address.isEmpty else {
+            errorMessage = NSLocalizedString("Unsupported QR code content.", comment: "")
+            return
+        }
+
+        recipientAddress = uri.address
+        useMaxAmount = false
+
+        if let amount = uri.amount {
+            applyScannedAmount(amount)
+        }
+    }
+
+    private func applyScannedAmount(_ amount: Double) {
+        guard amount > 0 else {
+            useMaxAmount = false
+            btcAmount = ""
+            fiatAmount = ""
+            validateAmount()
+            return
+        }
+
+        let formattedBTC = String(format: "%.8f", amount)
+        let formattedFiat = String(format: "%.2f", amount * btcPrice)
+
+        isUpdatingAmounts = true
+        btcAmount = formattedBTC
+        fiatAmount = formattedFiat
+        isUpdatingAmounts = false
+        useMaxAmount = false
+        validateAmount()
+        Task { await recalculateEstimate() }
+    }
+
+    private func isLikelyBitcoinAddress(_ string: String) -> Bool {
+        let address = string.lowercased()
+        let isBech32 = address.hasPrefix("bc1") || address.hasPrefix("tb1")
+        let isP2SH = address.hasPrefix("3") || address.hasPrefix("2")
+        let isLegacy = address.hasPrefix("1") || address.hasPrefix("m") || address.hasPrefix("n")
+        return isBech32 || isP2SH || isLegacy
+    }
+
     private func loadInitialData() async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.loadBalance() }
@@ -278,7 +363,8 @@ final class SendViewModel: ObservableObject {
         let isBech32 = address.hasPrefix("bc1") || address.hasPrefix("tb1")
         let isP2SH = address.hasPrefix("3") || address.hasPrefix("2")
         let isLegacy = address.hasPrefix("1")
-        isAddressValid = isBech32 || isP2SH || isLegacy
+        let isLegacyTestnet = address.hasPrefix("m") || address.hasPrefix("n")
+        isAddressValid = isBech32 || isP2SH || isLegacy || isLegacyTestnet
     }
 
     private func validateAmount() {

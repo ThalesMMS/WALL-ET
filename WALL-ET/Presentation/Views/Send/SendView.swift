@@ -38,6 +38,29 @@ struct SendView: View {
                 onCancel: viewModel.dismissConfirmation
             )
         }
+        .sheet(isPresented: Binding(
+            get: { viewModel.showScanner },
+            set: { viewModel.showScanner = $0 }
+        )) {
+            QRScannerView(
+                isPresented: Binding(
+                    get: { viewModel.showScanner },
+                    set: { viewModel.showScanner = $0 }
+                ),
+                onScan: { viewModel.handleScannedCode($0) }
+            )
+        }
+        .alert(
+            "Scan Error",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
     }
 
     private var balanceSection: some View {
