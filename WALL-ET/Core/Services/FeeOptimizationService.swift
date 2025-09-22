@@ -473,3 +473,6 @@ class FeeOptimizationService {
         }
     }
 }
+
+// MARK: - Protocol Conformance
+extension FeeOptimizationService: FeeOptimizationServicing { }
