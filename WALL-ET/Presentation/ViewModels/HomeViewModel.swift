@@ -16,23 +16,35 @@ class HomeViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showError = false
     @Published var chartData: [PricePoint] = []
-    
+    @Published var selectedTimeRange: PriceHistoryRange = .day
+
     // MARK: - Services
     private let walletService: WalletServiceProtocol
     private let priceService: PriceServiceProtocol
     private let transactionService: TransactionServiceProtocol
+    private let userDefaults: UserDefaults
+    private var priceHistoryCache: [PriceHistoryRange: [PricePoint]] = [:]
     private var cancellables = Set<AnyCancellable>()
-    
+
+    // MARK: - Cache Keys
+    private let historyCacheKeyPrefix = "HomeViewModel.PriceHistory."
+
     // MARK: - Initialization
     init(walletService: WalletServiceProtocol? = nil,
          priceService: PriceServiceProtocol? = nil,
-         transactionService: TransactionServiceProtocol? = nil) {
+         transactionService: TransactionServiceProtocol? = nil,
+         userDefaults: UserDefaults = .standard,
+         shouldLoadOnInit: Bool = true) {
         self.walletService = walletService ?? WalletService()
         self.priceService = priceService ?? PriceService()
         self.transactionService = transactionService ?? TransactionService()
-        
+        self.userDefaults = userDefaults
+
+        restoreCachedHistory()
         setupBindings()
-        loadData()
+        if shouldLoadOnInit {
+            loadData()
+        }
     }
     
     // MARK: - Setup
@@ -63,15 +75,17 @@ class HomeViewModel: ObservableObject {
             isLoading = true
             await loadWallets()
             await loadPrice()
+            await loadPriceHistory(for: selectedTimeRange)
             await loadRecentTransactions()
             calculateTotalBalance()
             isLoading = false
         }
     }
-    
+
     func refreshData() async {
         await loadWallets()
         await loadPrice()
+        await loadPriceHistory(for: selectedTimeRange)
         await loadRecentTransactions()
         calculateTotalBalance()
     }
@@ -89,21 +103,75 @@ class HomeViewModel: ObservableObject {
             let priceData = try await priceService.fetchBTCPrice()
             currentBTCPrice = priceData.price
             priceChange24h = priceData.change24h
-            // Placeholder sparkline points (optional)
-            if chartData.isEmpty {
-                let now = Date()
-                chartData = (0..<24).map { i in
-                    let d = Calendar.current.date(byAdding: .hour, value: -i, to: now) ?? now
-                    let jitter = Double(Int.random(in: -150...150)) / 100.0
-                    return PricePoint(date: d, price: max(0, priceData.price + jitter))
-                }.sorted { $0.date < $1.date }
-            }
         } catch {
             // Use cached price if fetch fails
             print("Failed to fetch price: \(error)")
         }
     }
-    
+
+    func loadPriceHistory(for range: PriceHistoryRange) async {
+        if let cached = cachedHistory(for: range) {
+            chartData = cached
+        }
+
+        do {
+            let history = try await priceService.fetchPriceHistory(days: range.days)
+                .sorted { $0.date < $1.date }
+
+            guard !history.isEmpty else {
+                if let cached = cachedHistory(for: range) {
+                    chartData = cached
+                }
+                return
+            }
+
+            chartData = history
+            cacheHistory(history, for: range)
+        } catch {
+            if let cached = cachedHistory(for: range) {
+                chartData = cached
+            } else {
+                handleError(error)
+            }
+        }
+    }
+
+    private func cacheHistory(_ history: [PricePoint], for range: PriceHistoryRange) {
+        priceHistoryCache[range] = history
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        if let data = try? encoder.encode(history) {
+            userDefaults.set(data, forKey: cacheKey(for: range))
+        }
+    }
+
+    private func cachedHistory(for range: PriceHistoryRange) -> [PricePoint]? {
+        if let cached = priceHistoryCache[range] {
+            return cached
+        }
+
+        if let data = userDefaults.data(forKey: cacheKey(for: range)) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .secondsSince1970
+            if let history = try? decoder.decode([PricePoint].self, from: data) {
+                priceHistoryCache[range] = history
+                return history
+            }
+        }
+
+        return nil
+    }
+
+    private func restoreCachedHistory() {
+        if let cached = cachedHistory(for: selectedTimeRange) {
+            chartData = cached
+        }
+    }
+
+    private func cacheKey(for range: PriceHistoryRange) -> String {
+        historyCacheKeyPrefix + range.rawValue
+    }
+
     private func loadRecentTransactions() async {
         do {
             recentTransactions = try await transactionService.fetchRecentTransactions(limit: 5)
@@ -160,6 +228,31 @@ class HomeViewModel: ObservableObject {
     private func handleError(_ error: Error) {
         errorMessage = error.localizedDescription
         showError = true
+    }
+}
+
+extension HomeViewModel {
+    enum PriceHistoryRange: String, CaseIterable {
+        case day = "1D"
+        case week = "1W"
+        case month = "1M"
+        case year = "1Y"
+        case all = "All"
+
+        var days: Int {
+            switch self {
+            case .day:
+                return 1
+            case .week:
+                return 7
+            case .month:
+                return 30
+            case .year:
+                return 365
+            case .all:
+                return 365 * 5
+            }
+        }
     }
 }
 
