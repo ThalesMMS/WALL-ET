@@ -70,7 +70,7 @@ struct FeeRates {
     let fastest: Int
 }
 
-struct PricePoint {
+struct PricePoint: Codable, Equatable {
     let date: Date
     let price: Double
 }

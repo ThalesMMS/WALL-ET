@@ -1,5 +1,5 @@
 import SwiftUI
-// Charts not used in this view yet
+import Charts
 
 extension DateFormatter {
     static let shortDate: DateFormatter = {
@@ -12,15 +12,10 @@ extension DateFormatter {
 
 struct ModernHomeView: View {
     @EnvironmentObject var coordinator: AppCoordinator
-    @StateObject private var viewModel = HomeViewModel()
-    @State private var selectedTimeRange = TimeRange.day
-    
-    enum TimeRange: String, CaseIterable {
-        case day = "1D"
-        case week = "1W"
-        case month = "1M"
-        case year = "1Y"
-        case all = "All"
+    @StateObject private var viewModel: HomeViewModel
+
+    init(viewModel: HomeViewModel = HomeViewModel()) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
     
     var body: some View {
@@ -141,34 +136,108 @@ struct ModernHomeView: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    ForEach(TimeRange.allCases, id: \.self) { range in
-                        Button(action: { selectedTimeRange = range }) {
+                    ForEach(HomeViewModel.PriceHistoryRange.allCases, id: \.self) { range in
+                        Button(action: {
+                            guard viewModel.selectedTimeRange != range else { return }
+                            viewModel.selectedTimeRange = range
+                            Task {
+                                await viewModel.loadPriceHistory(for: range)
+                            }
+                        }) {
                             Text(range.rawValue)
                                 .font(ModernTheme.Typography.caption)
                                 .foregroundColor(
-                                    selectedTimeRange == range ?
-                                    .white : ModernTheme.Colors.textSecondary
+                                    viewModel.selectedTimeRange == range ?
+                                        .white : ModernTheme.Colors.textSecondary
                                 )
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(
-                                    selectedTimeRange == range ?
-                                    ModernTheme.Colors.primary :
-                                    Color.clear
+                                    viewModel.selectedTimeRange == range ?
+                                        ModernTheme.Colors.primary :
+                                        Color.clear
                                 )
                                 .cornerRadius(ModernTheme.Radius.small)
                         }
                     }
                 }
             }
-            RoundedRectangle(cornerRadius: ModernTheme.Radius.medium)
-                .fill(ModernTheme.Colors.secondaryBackground)
-                .frame(height: 200)
-                .overlay(
-                    Text("Price chart coming soon")
-                        .font(ModernTheme.Typography.caption)
-                        .foregroundColor(ModernTheme.Colors.textSecondary)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: ModernTheme.Radius.medium)
+                    .fill(ModernTheme.Colors.secondaryBackground)
+
+                if viewModel.chartData.isEmpty {
+                    VStack(spacing: ModernTheme.Spacing.sm) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .foregroundColor(ModernTheme.Colors.textTertiary)
+                        Text("No price data available")
+                            .font(ModernTheme.Typography.caption)
+                            .foregroundColor(ModernTheme.Colors.textSecondary)
+                    }
+                } else {
+                    Chart {
+                        ForEach(viewModel.chartData, id: \.date) { point in
+                            AreaMark(
+                                x: .value("Date", point.date),
+                                y: .value("Price", point.price)
+                            )
+                            .interpolationMethod(.monotone)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        ModernTheme.Colors.primary.opacity(0.35),
+                                        ModernTheme.Colors.primary.opacity(0.05)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+
+                            LineMark(
+                                x: .value("Date", point.date),
+                                y: .value("Price", point.price)
+                            )
+                            .interpolationMethod(.monotone)
+                            .foregroundStyle(ModernTheme.Colors.primary)
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                            AxisGridLine()
+                                .foregroundStyle(ModernTheme.Colors.textTertiary.opacity(0.15))
+                            if let date = value.as(Date.self) {
+                                AxisValueLabel {
+                                    Text(formattedLabel(for: date))
+                                        .font(ModernTheme.Typography.caption2)
+                                        .foregroundColor(ModernTheme.Colors.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine()
+                                .foregroundStyle(ModernTheme.Colors.textTertiary.opacity(0.15))
+                            if let price = value.as(Double.self) {
+                                AxisValueLabel {
+                                    Text(formattedPriceLabel(for: price))
+                                        .font(ModernTheme.Typography.caption2)
+                                        .foregroundColor(ModernTheme.Colors.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .chartPlotStyle { plotArea in
+                        plotArea
+                            .background(ModernTheme.Colors.background.opacity(0.2))
+                            .cornerRadius(ModernTheme.Radius.small)
+                    }
+                    .padding(.horizontal, ModernTheme.Spacing.md)
+                    .padding(.vertical, ModernTheme.Spacing.sm)
+                }
+            }
+            .frame(height: 220)
         }
         .padding(ModernTheme.Spacing.lg)
         .modernCard()
@@ -233,7 +302,24 @@ struct ModernHomeView: View {
         .padding(ModernTheme.Spacing.lg)
         .modernCard()
     }
-    
+
+    private func formattedLabel(for date: Date) -> String {
+        switch viewModel.selectedTimeRange {
+        case .day:
+            return date.formatted(.dateTime.hour().minute())
+        case .week, .month:
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        case .year:
+            return date.formatted(.dateTime.month(.abbreviated))
+        case .all:
+            return date.formatted(.dateTime.year().month(.abbreviated))
+        }
+    }
+
+    private func formattedPriceLabel(for price: Double) -> String {
+        String(format: "$%.0f", price)
+    }
+
     private var timeOfDay: String {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
@@ -333,6 +419,18 @@ struct EmptyTransactionView: View {
 }
 
 #Preview {
-    ModernHomeView()
+    let previewViewModel = HomeViewModel(shouldLoadOnInit: false)
+    previewViewModel.totalBalanceUSD = 12345.67
+    previewViewModel.totalBalanceBTC = 0.45678901
+    previewViewModel.priceChange24h = 2.34
+    previewViewModel.selectedTimeRange = .day
+    previewViewModel.chartData = stride(from: 0, through: 12, by: 1).map { hour -> PricePoint in
+        let date = Calendar.current.date(byAdding: .hour, value: -hour, to: Date()) ?? Date()
+        let base = 62000.0
+        let variation = Double(hour * hour) * -12 + Double(hour) * 140
+        return PricePoint(date: date, price: base + variation)
+    }.sorted { $0.date < $1.date }
+
+    return ModernHomeView(viewModel: previewViewModel)
         .environmentObject(AppCoordinator())
 }
