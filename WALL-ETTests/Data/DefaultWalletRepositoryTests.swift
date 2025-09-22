@@ -59,6 +59,52 @@ final class DefaultWalletRepositoryTests: XCTestCase {
         XCTAssertEqual(transactions[1].status, .confirmed)
         XCTAssertEqual(transactions[1].confirmations, 12)
     }
+
+    func testWalletDerivationServiceSavesAndLoadsMnemonic() throws {
+        let keychain = KeychainServiceStub()
+        let service = WalletDerivationService(keychain: keychain)
+        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+
+        try service.saveMnemonic(mnemonic, walletName: "Primary")
+
+        XCTAssertEqual(try service.mnemonic(for: "Primary"), mnemonic)
+    }
+
+    func testWalletDerivationServiceDerivesFirstAccount() throws {
+        let keychain = KeychainServiceStub()
+        let service = WalletDerivationService(keychain: keychain)
+        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+
+        try service.saveMnemonic(mnemonic, walletName: "Primary")
+
+        let derivation = try service.deriveFirstAccount(for: "Primary", type: .testnet)
+        XCTAssertEqual(derivation.accountBasePath, "m/84'/1'/0'")
+        XCTAssertEqual(derivation.network, .testnet)
+        XCTAssertEqual(derivation.coinType, 1)
+
+        let expectedSeed = MnemonicService.shared.mnemonicToSeed(mnemonic)
+        let (_, expectedAddress) = MnemonicService.shared.deriveAddress(
+            from: expectedSeed,
+            path: "m/84'/1'/0'/0/0",
+            network: .testnet
+        )
+
+        XCTAssertEqual(derivation.address, expectedAddress)
+    }
+
+    func testWalletDerivationServiceThrowsWhenMnemonicMissing() {
+        let service = WalletDerivationService(keychain: KeychainServiceStub())
+
+        XCTAssertThrowsError(
+            try service.deriveAddress(
+                for: "Unknown",
+                path: "m/84'/1'/0'/0/0",
+                network: .testnet
+            )
+        ) { error in
+            XCTAssertEqual(error as? WalletDerivationError, .mnemonicNotFound(name: "Unknown"))
+        }
+    }
 }
 
 private final class TransactionsAdapterStub: TransactionsAdapterProtocol {
