@@ -14,43 +14,70 @@ protocol SendBitcoinUseCaseProtocol {
 
 final class SendBitcoinUseCase: SendBitcoinUseCaseProtocol {
     private let walletRepository: WalletRepositoryProtocol
-    
-    init(walletRepository: WalletRepositoryProtocol) {
+    private let transactionService: TransactionServiceProtocol
+    private let feeService: FeeServiceProtocol
+
+    init(
+        walletRepository: WalletRepositoryProtocol,
+        transactionService: TransactionServiceProtocol,
+        feeService: FeeServiceProtocol
+    ) {
         self.walletRepository = walletRepository
+        self.transactionService = transactionService
+        self.feeService = feeService
     }
-    
+
     func execute(request: SendTransactionRequest) async throws -> Transaction {
         // Validate address
         guard request.toAddress.isValidBitcoinAddress else {
             throw WalletError.invalidAddress
         }
-        
+
         // Validate amount
         guard request.amount > Constants.Bitcoin.minimumDustAmount else {
             throw WalletError.amountTooSmall
         }
-        
+
         // Check balance
         let balance = try await walletRepository.getBalance(for: request.fromWallet.accounts.first?.address ?? "")
         guard balance.confirmed >= request.amount else {
             throw WalletError.insufficientBalance
         }
-        
-        // Create and broadcast transaction
-        // In a real implementation, this would create a proper Bitcoin transaction
-        let transaction = Transaction(
-            id: UUID().uuidString,
-            hash: UUID().uuidString,
-            type: .send,
-            amount: request.amount,
-            fee: Int64(request.feeRate * 250), // Estimated fee
-            toAddress: request.toAddress,
+
+        let amountInBTC = Double(request.amount) / Double(Constants.Bitcoin.satoshisPerBitcoin)
+        let feeInBTC = try await feeService.estimateFee(amount: amountInBTC, feeRate: request.feeRate)
+
+        let transactionModel = try await transactionService.sendBitcoin(
+            to: request.toAddress,
+            amount: amountInBTC,
+            fee: feeInBTC,
+            note: request.memo
+        )
+
+        logInfo("Transaction broadcasted: \(transactionModel.id)")
+
+        return Transaction(
+            id: transactionModel.id,
+            hash: transactionModel.id,
+            type: mapTransactionType(transactionModel.type),
+            amount: transactionModel.amount.bitcoinToSatoshis(),
+            fee: transactionModel.fee.bitcoinToSatoshis(),
+            timestamp: transactionModel.date,
+            confirmations: transactionModel.confirmations,
+            status: transactionModel.status,
+            fromAddress: request.fromWallet.accounts.first?.address,
+            toAddress: transactionModel.address,
             memo: request.memo
         )
-        
-        logInfo("Transaction created: \(transaction.hash)")
-        
-        return transaction
+    }
+
+    private func mapTransactionType(_ type: TransactionModel.TransactionType) -> TransactionType {
+        switch type {
+        case .sent:
+            return .send
+        case .received:
+            return .receive
+        }
     }
 }
 
