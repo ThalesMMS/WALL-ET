@@ -294,9 +294,13 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
         // Build list of confirmed ids respecting original order of heights
         let confirmedIds = ids.filter { (heightMap[$0] ?? nil) != nil }
         // Unique heights in order
-        var seenHeights: [Int] = []
-        for id in confirmedIds { let h = heightMap[id]!!; if !seenHeights.contains(h) { seenHeights.append(h) } }
-        for h in seenHeights {
+        var seenHeights = Set<Int>()
+        var orderedHeights: [Int] = []
+        for id in confirmedIds {
+            let h = heightMap[id]!!
+            if seenHeights.insert(h).inserted { orderedHeights.append(h) }
+        }
+        for h in orderedHeights {
             var arr = groups[h] ?? []
             // fetch positions if missing (throttled + backoff)
             let missing = arr.filter { posCache[keyForPos(h, $0)] == nil }
@@ -337,6 +341,26 @@ final class ElectrumTransactionsAdapter: TransactionsAdapterProtocol {
 
     private func keyForPos(_ h: Int, _ txid: String) -> String { "\(h)|\(txid)" }
 }
+
+#if DEBUG
+extension ElectrumTransactionsAdapter {
+    func debugSetHeightMap(_ map: [String: Int?]) {
+        mapLock.lock()
+        heightMap = map
+        mapLock.unlock()
+    }
+
+    func debugSetPosCache(_ cache: [String: Int]) {
+        mapLock.lock()
+        posCache = cache
+        mapLock.unlock()
+    }
+
+    func debugRefineOrder(ids: [String]) async throws -> [String] {
+        try await refineOrderWithPositions(ids: ids)
+    }
+}
+#endif
 
 // MARK: - Cursor & Ordering & Persistence
 private extension ElectrumTransactionsAdapter {
