@@ -57,15 +57,29 @@ final class DefaultWalletRepository: WalletRepositoryProtocol {
 
     func getAllWallets() async throws -> [Wallet] {
         let entities = persistence.getAllWallets()
-        return entities.map { entity in
-            let addresses = persistence.getAddresses(for: entity, isChange: false)
-            let count = addresses.count
-            let first = addresses.first?.address ?? ""
-            logInfo("[Repo] getAllWallets: entity=\(entity.name ?? "Wallet"), externalCount=\(count), first=\(first.isEmpty ? "<empty>" : first)")
-            let account = Account(index: 0, address: first, publicKey: "")
-            let type: WalletType = (entity.network == "mainnet") ? .bitcoin : .testnet
-            return Wallet(id: entity.id ?? UUID(), name: entity.name ?? "Wallet", type: type, accounts: [account], isWatchOnly: false)
+        return entities.map(mapWalletEntityToDomain)
+    }
+
+    fileprivate func mapWalletEntityToDomain(_ entity: WalletEntity) -> Wallet {
+        let addresses = persistence.getAddresses(for: entity, isChange: false)
+        let count = addresses.count
+        let first = addresses.first?.address ?? ""
+        logInfo("[Repo] mapWallet: entity=\(entity.name ?? \"Wallet\"), externalCount=\(count), first=\(first.isEmpty ? \"<empty>\" : first)")
+
+        let accounts = addresses.compactMap { addressEntity -> Account? in
+            guard let address = addressEntity.address else { return nil }
+            return Account(index: Int(addressEntity.derivationIndex), address: address, publicKey: "")
         }
+
+        let type: WalletType = (entity.network == "mainnet") ? .bitcoin : .testnet
+        let isWatchOnly = entity.type == "watch_only"
+        return Wallet(
+            id: entity.id ?? UUID(),
+            name: entity.name ?? "Wallet",
+            type: type,
+            accounts: accounts,
+            isWatchOnly: isWatchOnly
+        )
     }
 
     func getWallet(by id: UUID) async throws -> Wallet? {
@@ -120,11 +134,7 @@ private func redactMnemonic(_ phrase: String) -> String {
 extension DefaultWalletRepository {
     func getActiveWallet() -> Wallet? {
         guard let entity = persistence.getActiveWallet() else { return nil }
-        let addresses = persistence.getAddresses(for: entity, isChange: false)
-        let first = addresses.first?.address ?? ""
-        let account = Account(index: 0, address: first, publicKey: "")
-        let type: WalletType = (entity.network == "mainnet") ? .bitcoin : .testnet
-        return Wallet(id: entity.id ?? UUID(), name: entity.name ?? "Wallet", type: type, accounts: [account], isWatchOnly: entity.type == "watch_only")
+        return mapWalletEntityToDomain(entity)
     }
 
     func setActiveWallet(id: UUID) {
