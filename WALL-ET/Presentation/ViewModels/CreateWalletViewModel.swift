@@ -27,26 +27,24 @@ final class CreateWalletViewModel: ObservableObject {
             errorMessage = "Please enter a wallet name"
             return
         }
-        
+
         isCreating = true
         errorMessage = nil
-        
+
         do {
-            let wallet = try await createWalletUseCase.execute(name: walletName, type: walletType)
-            createdWallet = wallet
-            
-            // Generate mnemonic for display
-            mnemonic = generateMockMnemonic()
-            
-            logInfo("Wallet created successfully: \(wallet.name)")
+            let result = try await createWalletUseCase.execute(name: walletName, type: walletType)
+            createdWallet = result.wallet
+            mnemonic = result.mnemonic
+
+            logInfo("Wallet created successfully: \(result.wallet.name)")
         } catch {
             errorMessage = error.localizedDescription
             logError("Failed to create wallet: \(error)")
         }
-        
+
         isCreating = false
     }
-    
+
     func importWallet(mnemonic: String) async {
         guard isValidName else {
             errorMessage = "Please enter a wallet name"
@@ -147,14 +145,6 @@ final class CreateWalletViewModel: ObservableObject {
         isCreating = false
     }
     
-    private func generateMockMnemonic() -> String {
-        // In a real app, use proper BIP39 library
-        let words = [
-            "abandon", "ability", "able", "about", "above", "absent",
-            "absorb", "abstract", "absurd", "abuse", "access", "accident"
-        ]
-        return words.joined(separator: " ")
-    }
 }
 
 // MARK: - Redaction helper for mnemonic logging

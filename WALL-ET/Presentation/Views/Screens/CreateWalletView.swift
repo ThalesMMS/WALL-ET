@@ -155,11 +155,6 @@ struct CreateWalletView: View {
             switch selectedOption {
             case .create:
                 await viewModel.createWallet()
-                // Try loading mnemonic from keychain for display
-                let key = "\(Constants.Keychain.walletSeed)_\(viewModel.walletName)"
-                if let m = try? KeychainService().loadString(for: key) {
-                    viewModel.mnemonic = m
-                }
             case .import:
                 await viewModel.importWallet(mnemonic: mnemonicInput)
             case .watchOnly:
