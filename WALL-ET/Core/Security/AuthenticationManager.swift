@@ -3,7 +3,7 @@ import LocalAuthentication
 import Combine
 import UIKit
 
-class AuthenticationManager: ObservableObject {
+class AuthenticationManager: ObservableObject, UnlockAuthenticating {
     
     static let shared = AuthenticationManager()
     
@@ -93,7 +93,7 @@ class AuthenticationManager: ObservableObject {
         if biometricEnabled && biometricService.isBiometricAvailable() {
             authenticateWithBiometric(completion: completion)
         } else if settingsRepository.getBoolSetting(key: SettingsRepository.SettingsKey.pinEnabled) {
-            authenticateWithPIN(completion: completion)
+            authenticateWithPIN(pin: nil, completion: completion)
         } else {
             isAuthenticated = true
             completion?(true)
@@ -114,7 +114,7 @@ class AuthenticationManager: ObservableObject {
                 self?.isAuthenticated = false
                 
                 if self?.settingsRepository.getBoolSetting(key: SettingsRepository.SettingsKey.pinEnabled) ?? false {
-                    self?.authenticateWithPIN(completion: completion)
+                    self?.authenticateWithPIN(pin: nil, completion: completion)
                 } else {
                     completion?(false)
                 }

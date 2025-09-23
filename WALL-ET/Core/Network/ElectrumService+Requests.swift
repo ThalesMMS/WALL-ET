@@ -1,7 +1,7 @@
 import Foundation
 
 extension ElectrumService {
-    private final class RequestHandler {
+    final class RequestHandler {
         let method: String
         let completion: (Result<Any, Error>) -> Void
         var timeoutWorkItem: DispatchWorkItem?

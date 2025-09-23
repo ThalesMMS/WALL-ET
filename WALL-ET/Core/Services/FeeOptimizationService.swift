@@ -87,7 +87,83 @@ class FeeOptimizationService {
         return estimates
     }
     
-    // [... All other methods remain the same as in the resolved version ...]
+    // MARK: - Private Helper Methods
+    
+    private func updateFeeCache() async {
+        for level in FeeLevel.allCases where level != .custom {
+            if let feeRate = await fetchFeeRate(for: level) {
+                feeCache[level] = feeRate
+            }
+        }
+        lastFeeUpdate = Date()
+    }
+    
+    private func fetchFeeRate(for level: FeeLevel) async -> Double? {
+        let blocks = level.targetBlocks
+        
+        return await withCheckedContinuation { continuation in
+            electrumService.getFeeEstimate(blocks: blocks) { result in
+                switch result {
+                case .success(let feeRate):
+                    // Convert from BTC per KB to sats per byte
+                    let satsPerByte = feeRate * 100_000_000.0 / 1000.0
+                    continuation.resume(returning: max(1.0, satsPerByte)) // Minimum 1 sat/byte
+                case .failure(_):
+                    // Fallback to hardcoded rates if Electrum fails
+                    let fallbackRates: [FeeLevel: Double] = [
+                        .slow: 5.0,
+                        .normal: 20.0,
+                        .fast: 50.0
+                    ]
+                    continuation.resume(returning: fallbackRates[level])
+                }
+            }
+        }
+    }
+    
+    private func calculateFeeEstimate(
+        level: FeeLevel,
+        satsPerByte: Double,
+        transaction: BitcoinTransaction?
+    ) -> FeeEstimate {
+        // Estimate transaction size
+        let estimatedVBytes: Int
+        if let transaction = transaction {
+            // Use actual transaction size if available
+            estimatedVBytes = estimateTransactionSize(transaction)
+        } else {
+            // Default estimate: 1 input (P2WPKH), 2 outputs (P2WPKH), ~140 vbytes
+            estimatedVBytes = 140
+        }
+        
+        let totalFee = Int64(satsPerByte * Double(estimatedVBytes))
+        
+        return FeeEstimate(
+            level: level,
+            satsPerByte: satsPerByte,
+            totalFee: totalFee,
+            estimatedTime: level.description,
+            totalBytes: estimatedVBytes
+        )
+    }
+    
+    private func estimateTransactionSize(_ transaction: BitcoinTransaction) -> Int {
+        // Rough estimation based on transaction structure
+        // Base transaction size: 4 bytes version + 4 bytes locktime = 8 bytes
+        var size = 8
+        
+        // Inputs: each input is ~41 bytes (32 txid + 4 vout + 1 script length + 4 sequence)
+        size += transaction.inputs.count * 41
+        
+        // Outputs: each output is ~9 bytes (8 value + 1 script length) + script size
+        // P2WPKH script is 22 bytes
+        size += transaction.outputs.count * (9 + 22)
+        
+        // Witness data: each input has witness (1 stack items + 1 item length + 72 bytes signature + 1 item length + 33 bytes pubkey)
+        size += transaction.inputs.count * (1 + 1 + 72 + 1 + 33)
+        
+        return size
+    }
     
     // MARK: - Error Types
     

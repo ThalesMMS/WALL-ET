@@ -1,54 +1,32 @@
 # Repository Guidelines
 
-## Project Structure & Modules
-- Source: `WALL-ET/` (library target `WALL-ET`). Key layers: `App/`, `Core/`, `Data/`, `Domain/`, `Presentation/`, `DesignSystem/`, `Resources/`, `Tooling/`.
-- Tests: `WALL-ETTests/` (unit/integration) and `WALL-ETUITests/` (UI, Xcode project).
-- SwiftPM: `Package.swift` (iOS 16+, library product). Xcode project: `WALL-ET.xcodeproj`.
+## Project Structure & Module Organization
+- Source lives under `WALL-ET/` with feature layers such as `App/`, `Core/`, `Data/`, `Domain/`, `Presentation/`, `DesignSystem/`, `Resources/`, and `Tooling/`; mirror this when adding new types.
+- Tests reside in `WALL-ETTests/` (unit & integration) and `WALL-ETUITests/` (UI). Match the source hierarchy, e.g. add `Domain/UseCases/CreateWalletUseCaseTests.swift` when touching `Domain/UseCases/CreateWalletUseCase.swift`.
+- Package manifest (`Package.swift`) targets iOS 16+; the Xcode project `WALL-ET.xcodeproj` provides the `WALL-ET` app and test schemes.
 
 ## Build, Test, and Development Commands
-- Resolve + build (SwiftPM): `swift build` (use `-c release` for optimized).
-- Run tests (SwiftPM): `swift test` (example: `swift test --filter RealCryptoTests/testGeneratePrivateKey`).
-- Xcode build: `xcodebuild -project WALL-ET.xcodeproj -scheme WALL-ET build`.
-- Xcode tests (including UI): `xcodebuild -project WALL-ET.xcodeproj -scheme WALL-ET test -destination 'platform=iOS Simulator,name=iPhone 15'`.
+- `swift build` / `swift build -c release` — resolve dependencies and compile via SwiftPM.
+- `swift test` or `swift test --filter TypeName/testName` — run the SwiftPM test suite or focused tests.
+- `xcodebuild -project WALL-ET.xcodeproj -scheme WALL-ET build` — build the app target for Xcode-based workflows.
+- `xcodebuild -project WALL-ET.xcodeproj -scheme WALL-ET test -destination 'platform=iOS Simulator,name=iPhone 15'` — execute UI and integration tests in the simulator.
 
 ## Coding Style & Naming Conventions
-- Language: Swift 5.9/6. Indentation: 4 spaces; line length ~120.
-- Types: PascalCase (`CryptoService`, `BalanceViewModel`). Methods/vars: camelCase. Enums: singular (`Network`), cases lowerCamelCase.
-- Protocols: no `I` prefix; add `Protocol` suffix only when disambiguating.
-- Files mirror types: one top-level type per file; group by layer (e.g., `Domain/UseCases/CreateWalletUseCase.swift`).
-- Formatting: use Xcode’s formatter. Avoid churn-only reformatting.
+- Swift 5.9/6, 4-space indentation, ~120 character lines; rely on Xcode's formatter to avoid churn.
+- Types use PascalCase (`CryptoService`), methods/vars camelCase, enums singular, cases lowerCamelCase.
+- One top-level type per file; name files after the type and place them in the appropriate module folder.
 
 ## Testing Guidelines
-- Frameworks: XCTest (primary) and Swift Testing (`import Testing`) where appropriate.
-- Location: mirror source structure under `WALL-ETTests/` (e.g., `Core/`, `Helpers/`).
-- Naming: files end with `Tests.swift`; functions start with `test...` or `@Test` cases.
-- Coverage: aim ≥ 80% for `Domain` and `Core`. Provide deterministic tests (no network; use fakes/mocks).
-- Run focused tests: `swift test --filter <TypeName>/<testName>`.
+- Prefer XCTest; supplement with `import Testing` when lightweight test declarations help clarity.
+- Keep coverage ≥80% in `Core` and `Domain`; stub network or crypto dependencies with fakes.
+- Name files with `Tests.swift`; test functions start with `test...` (or `@Test`). Ensure determinism—no real network calls.
 
 ## Commit & Pull Request Guidelines
-- Commits: concise, imperative subject. Prefer Conventional Commits (`feat:`, `fix:`, `test:`, `chore:`).
-- PRs: clear description, linked issues, rationale, testing notes, and risks. Include screenshots for UI changes (device + iOS version).
-- Status: all checks green; tests required for new domain/data logic.
+- Follow Conventional Commits (`feat:`, `fix:`, `test:`, `chore:`) with concise, imperative subjects.
+- PRs require a clear rationale, linked issues, testing notes, and screenshots for UI updates (include device + iOS version).
+- Confirm all automated checks are green and mention any gaps or follow-up work.
 
-## Security & Configuration
-- Never commit secrets or real keys. Use `KeychainAccess` for credentials and test with Bitcoin testnet.
-- Environment/config: keep settings under `App/Configuration/` and `Resources/` (e.g., privacy, strings). Avoid hardcoded endpoints.
-
-## Current Progress
-- Testnet‑only wallet with BIP39 + BIP32 (BIP84 P2WPKH tb1…) derivation.
-- Electrum integration for balances, history (verbose parsing), and broadcasting.
-- Real send flow: build, sign (libsecp256k1), and broadcast on testnet.
-- Gap‑limit discovery (m/84'/1'/0'/0/i) persisted; change path ensured.
-- CodeScanner wired for QR/BBQR; legacy placeholder removed.
-- Settings → Manage Wallets uses Core Data (list, delete, navigate to detail).
-- Empty states (Home/Transactions) with Create/Import actions.
-- Network Settings (testnet server host/port/SSL) with apply + reconnect.
-- Dark mode toggle via AppStorage + preferredColorScheme.
- - Home quick actions wired (Send/Receive open sheets).
- - Add Wallet supports mainnet/testnet selection; repository derives correct coin type.
-
-Developer tips
-- Build app target `WALL-ET` in Xcode; simulator iPhone 16 works out of the box.
-- For sending tx: ensure Electrum testnet server reachable; use small amounts and confirm UTXOs appear under the first derived address.
- - For mainnet wallets, update Network Settings to a mainnet Electrum server before fetching history or broadcasting.
- - Price/fiat is live for totals; historical fiat values are not backfilled yet.
+## Security & Configuration Tips
+- Never commit secrets or mainnet keys; use `KeychainAccess` and test with Bitcoin testnet data.
+- Network settings live under `App/Configuration/` and `Resources/`; update Electrum servers there rather than hardcoding.
+- Validate send flows against reachable Electrum endpoints and keep transaction values small during development.

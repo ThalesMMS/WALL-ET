@@ -8,11 +8,16 @@ struct SendReceiveView: View {
     @State private var showImportSheet = false
 
     init(
-        sendViewModel: @autoclosure @escaping () -> SendViewModel = SendViewModel(),
-        receiveViewModel: @autoclosure @escaping () -> ReceiveViewModel = ReceiveViewModel()
+        sendViewModel: @autoclosure @escaping () -> SendViewModel,
+        receiveViewModel: @autoclosure @escaping () -> ReceiveViewModel
     ) {
         _sendViewModel = StateObject(wrappedValue: sendViewModel())
         _receiveViewModel = StateObject(wrappedValue: receiveViewModel())
+    }
+    
+    init() {
+        _sendViewModel = StateObject(wrappedValue: SendViewModel())
+        _receiveViewModel = StateObject(wrappedValue: ReceiveViewModel())
     }
 
     var body: some View {
@@ -53,28 +58,6 @@ struct SendReceiveView: View {
 }
 
 #Preview {
-    final class PreviewSendBitcoinUseCase: SendBitcoinUseCaseProtocol {
-        func execute(request: SendTransactionRequest) async throws -> Transaction {
-            Transaction(
-                id: UUID().uuidString,
-                hash: UUID().uuidString,
-                type: .send,
-                amount: request.amount,
-                fee: 0,
-                toAddress: request.toAddress,
-                memo: request.memo
-            )
-        }
-    }
-
-    let coordinator = AppCoordinator()
-    let sendViewModel = SendViewModel(
-        sendBitcoinUseCase: PreviewSendBitcoinUseCase(),
-        initialBalance: 1.0,
-        initialPrice: 62000,
-        skipInitialLoad: true
-    )
-
-    return SendReceiveView(sendViewModel: sendViewModel)
-        .environmentObject(coordinator)
+    SendReceiveView()
+        .environmentObject(AppCoordinator())
 }

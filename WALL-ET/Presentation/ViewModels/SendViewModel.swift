@@ -97,8 +97,9 @@ final class SendViewModel: ObservableObject {
 
         if let transactionService {
             self.transactionService = transactionService
-        } else if let resolved: TransactionServiceProtocol = DIContainer.shared.resolve(TransactionServiceProtocol.self) as? TransactionService {
-            self.transactionService = resolved
+        } else if let resolved: TransactionServiceProtocol = DIContainer.shared.resolve(TransactionServiceProtocol.self),
+                  let transactionService = resolved as? TransactionService {
+            self.transactionService = transactionService
         } else {
             self.transactionService = TransactionService()
         }

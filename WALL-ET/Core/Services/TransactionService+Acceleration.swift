@@ -30,7 +30,9 @@ extension TransactionService {
         }
 
         let seed = MnemonicService.shared.mnemonicToSeed(mnemonic)
-        let infoMap = Dictionary(uniqueKeysWithValues: addressInfos.map { ($0.address, $0) })
+        let infoMap: [String: WalletAddressInfo] = addressInfos.reduce(into: [:]) { result, info in
+            result[info.address] = info
+        }
 
         var inputUTXOs: [UTXO] = []
         var signingKeys: [Data] = []

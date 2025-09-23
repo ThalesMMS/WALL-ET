@@ -1,0 +1,546 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project WALL-ET.xcodeproj -scheme WALL-ET -sdk iphonesimulator -configuration Debug build
+
+Build settings from command line:
+    SDKROOT = iphonesimulator26.0
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  swift-secp256k1: https://github.com/GigaBitcoin/secp256k1.swift @ 0.21.1
+  CodeScanner: https://github.com/twostraws/CodeScanner @ 2.5.2
+
+2025-09-22 17:25:59.858 xcodebuild[43286:537849] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+{ platform:iOS Simulator, arch:arm64, id:89B37587-4BC2-4560-ACEA-8B65C649FFC8, OS:26.0, name:iPhone 17 Pro Max }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00008132-001A71600EC1801C, name:My Mac }
+{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+{ platform:iOS, arch:arm64, id:00008110-00190821146B801E, name:iPhone }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (6 targets)
+    Target 'WALL-ET' in project 'WALL-ET'
+        ➜ Explicit dependency on target 'CodeScanner' in project 'CodeScanner'
+        ➜ Explicit dependency on target 'libsecp256k1' in project 'swift-secp256k1'
+    Target 'libsecp256k1' in project 'swift-secp256k1'
+        ➜ Explicit dependency on target 'libsecp256k1' in project 'swift-secp256k1'
+    Target 'libsecp256k1' in project 'swift-secp256k1' (no dependencies)
+    Target 'CodeScanner' in project 'CodeScanner'
+        ➜ Explicit dependency on target 'CodeScanner' in project 'CodeScanner'
+        ➜ Explicit dependency on target 'CodeScanner_CodeScanner' in project 'CodeScanner'
+    Target 'CodeScanner' in project 'CodeScanner'
+        ➜ Explicit dependency on target 'CodeScanner_CodeScanner' in project 'CodeScanner'
+    Target 'CodeScanner_CodeScanner' in project 'CodeScanner' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/momc --dry-run --action generate --swift-version 5.0 --sdkroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk --iphonesimulator-deployment-target 18.5 --module WALL_ET /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/WalletModel.xcdatamodeld /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/CoreDataGenerated/WalletModel
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x c -c /dev/null
+
+Build description signature: a3684ee2e218f99b5142d943c2aed7c7
+Build description path: /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/XCBuildData/a3684ee2e218f99b5142d943c2aed7c7.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk /Users/thales/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-3885c01c3e6b6a337905948deab2002e26257891a6c027eb51374368541b8346.sdkstatcache
+    cd /Users/thales/Documents/GitHub/WALL-ET/WALL-ET.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -o /Users/thales/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-3885c01c3e6b6a337905948deab2002e26257891a6c027eb51374368541b8346.sdkstatcache
+
+ProcessInfoPlistFile /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/CodeScanner_CodeScanner.bundle/Info.plist /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/CodeScanner.build/Debug-iphonesimulator/CodeScanner_CodeScanner.build/empty-CodeScanner_CodeScanner.plist (in target 'CodeScanner_CodeScanner' from project 'CodeScanner')
+    cd /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/SourcePackages/checkouts/CodeScanner
+    builtin-infoPlistUtility /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/CodeScanner.build/Debug-iphonesimulator/CodeScanner_CodeScanner.build/empty-CodeScanner_CodeScanner.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/CodeScanner.build/Debug-iphonesimulator/CodeScanner_CodeScanner.build/assetcatalog_generated_info.plist -o /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/CodeScanner_CodeScanner.bundle/Info.plist
+
+SwiftDriver WALL-ET normal x86_64 com.apple.xcode.tools.swift.compiler (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name WALL_ET -Onone -enforce-exclusivity\=checked @/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/x86_64/WALL-ET.SwiftFileList -DDEBUG -Xcc -fmodule-map-file\=/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/libsecp256k1.modulemap -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -target x86_64-apple-ios18.5-simulator -g -module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator -emit-localized-strings -emit-localized-strings-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/x86_64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-3885c01c3e6b6a337905948deab2002e26257891a6c027eb51374368541b8346.sdkstatcache -output-file-map /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/x86_64/WALL-ET-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/x86_64/WALL_ET.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/x86_64/WALL-ET_const_extract_protocols.json -Xcc -iquote -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-generated-files.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-own-target-headers.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET-376dac9ee4a00476a6330d13c2742ec4-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-project-headers.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/SourcePackages/checkouts/secp256k1.swift/Sources/libsecp256k1/include -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources-normal/x86_64 -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/x86_64 -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/x86_64/WALL_ET-Swift.h -working-directory /Users/thales/Documents/GitHub/WALL-ET -experimental-emit-module-separately -disable-cmo
+
+SwiftDriver WALL-ET normal arm64 com.apple.xcode.tools.swift.compiler (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name WALL_ET -Onone -enforce-exclusivity\=checked @/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL-ET.SwiftFileList -DDEBUG -Xcc -fmodule-map-file\=/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/libsecp256k1.modulemap -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -target arm64-apple-ios18.5-simulator -g -module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator -emit-localized-strings -emit-localized-strings-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-3885c01c3e6b6a337905948deab2002e26257891a6c027eb51374368541b8346.sdkstatcache -output-file-map /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL-ET-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL-ET_const_extract_protocols.json -Xcc -iquote -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-generated-files.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-own-target-headers.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET-376dac9ee4a00476a6330d13c2742ec4-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-project-headers.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/SourcePackages/checkouts/secp256k1.swift/Sources/libsecp256k1/include -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources-normal/arm64 -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/arm64 -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET-Swift.h -working-directory /Users/thales/Documents/GitHub/WALL-ET -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/WALL-ET.app/CodeScanner_CodeScanner.bundle /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/CodeScanner_CodeScanner.bundle (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/CodeScanner_CodeScanner.bundle /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/WALL-ET.app
+
+ProcessInfoPlistFile /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/WALL-ET.app/Info.plist /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/empty-WALL-ET.plist (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    builtin-infoPlistUtility /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/empty-WALL-ET.plist -producttype com.apple.product-type.application -genpkginfo /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/WALL-ET.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/assetcatalog_generated_info.plist -scanforprivacyfile /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/WALL-ET.app/CodeScanner_CodeScanner.bundle -o /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/WALL-ET.app/Info.plist
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ WALL_ET (in target 'WALL-ET' from project 'WALL-ET')
+
+EmitSwiftModule normal arm64 (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService.swift:13:40: error: 'RequestHandler' is inaccessible due to 'private' protection level
+    private var pendingRequests: [Int: RequestHandler] = [:]
+                                       ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Requests.swift:4:25: note: type declared here
+    private final class RequestHandler {
+                        ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift:16:36: warning: conformance of 'DefaultWalletRepository' to protocol 'WalletDataRepository' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode
+extension DefaultWalletRepository: WalletDataRepository {
+                                   ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift:16:36: note: isolate this conformance to the main actor with '@MainActor'
+extension DefaultWalletRepository: WalletDataRepository {
+                                   ^
+                                   @MainActor 
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift:16:1: note: mark all declarations used in the conformance 'nonisolated'
+extension DefaultWalletRepository: WalletDataRepository {
+^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift:16:36: note: turn data races into runtime errors with '@preconcurrency'
+extension DefaultWalletRepository: WalletDataRepository {
+                                   ^
+                                   @preconcurrency 
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift:22:10: note: main actor-isolated instance method 'listAllAddresses()' cannot satisfy nonisolated requirement
+    func listAllAddresses() -> [String] {
+         ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift:5:10: note: main actor-isolated instance method 'getActiveWallet()' cannot satisfy nonisolated requirement
+    func getActiveWallet() -> Wallet? {
+         ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift:10:10: note: main actor-isolated instance method 'setActiveWallet(id:)' cannot satisfy nonisolated requirement
+    func setActiveWallet(id: UUID) {
+         ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/UnlockViewModel.swift:16:70: error: default argument value of type 'AuthenticationManager' does not conform to 'UnlockAuthenticating'
+    init(authenticator: UnlockAuthenticating = AuthenticationManager.shared) {
+                                               ~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+                                                                            as! UnlockAuthenticating
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Home/ModernHomeView.swift:17:37: error: call to main actor-isolated initializer 'init(walletService:priceService:transactionService:userDefaults:shouldLoadOnInit:)' in a synchronous nonisolated context
+    init(viewModel: HomeViewModel = HomeViewModel()) {
+                                    ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/HomeViewModel.swift:33:5: note: calls to initializer 'init(walletService:priceService:transactionService:userDefaults:shouldLoadOnInit:)' from outside of its actor context are implicitly asynchronous
+    init(walletService: WalletServiceProtocol? = nil,
+    ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift:11:69: error: call to main actor-isolated initializer 'init(walletRepository:priceService:transactionService:sendBitcoinUseCase:initialBalance:initialPrice:skipInitialLoad:)' in a synchronous nonisolated context
+        sendViewModel: @autoclosure @escaping () -> SendViewModel = SendViewModel(),
+                                                                    ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/SendViewModel.swift:73:5: note: calls to initializer 'init(walletRepository:priceService:transactionService:sendBitcoinUseCase:initialBalance:initialPrice:skipInitialLoad:)' from outside of its actor context are implicitly asynchronous
+    init(
+    ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift:12:75: error: call to main actor-isolated initializer 'init(walletService:electrumService:qrGenerator:initialAddress:skipInitialLoad:)' in a synchronous nonisolated context
+        receiveViewModel: @autoclosure @escaping () -> ReceiveViewModel = ReceiveViewModel()
+                                                                          ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/ReceiveViewModel.swift:37:5: note: calls to initializer 'init(walletService:electrumService:qrGenerator:initialAddress:skipInitialLoad:)' from outside of its actor context are implicitly asynchronous
+    init(
+    ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift:526:36: warning: conformance of 'DefaultWalletRepository' to protocol 'BackupActiveWalletProviding' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode
+extension DefaultWalletRepository: BackupActiveWalletProviding {}
+                                   ^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift:526:36: note: isolate this conformance to the main actor with '@MainActor'
+extension DefaultWalletRepository: BackupActiveWalletProviding {}
+                                   ^
+                                   @MainActor 
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift:526:1: note: mark all declarations used in the conformance 'nonisolated'
+extension DefaultWalletRepository: BackupActiveWalletProviding {}
+^
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift:526:36: note: turn data races into runtime errors with '@preconcurrency'
+extension DefaultWalletRepository: BackupActiveWalletProviding {}
+                                   ^
+                                   @preconcurrency 
+/Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift:5:10: note: main actor-isolated instance method 'getActiveWallet()' cannot satisfy nonisolated requirement
+    func getActiveWallet() -> Wallet? {
+         ^
+
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -emit-module -experimental-skip-non-inlinable-function-bodies-without-types /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/App/AppDelegate.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/App/AppMain.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Adapters/ElectrumTransactionsAdapter.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/BitcoinService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/CryptoService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/MnemonicService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/TransactionDecoder.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/TransactionService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Constants/Constants.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Crypto/RIPEMD160.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/DI/DIContainer.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Extensions/Double+Extensions.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Extensions/String+Extensions.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Connection.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Models.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Requests.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Subscriptions.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Utilities.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/PriceService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Observability/Logger.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/AddressEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/AddressEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/PriceDataEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/PriceDataEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/SettingsEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/SettingsEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/TransactionEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/TransactionEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/TransactionInputEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/TransactionInputEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/TransactionOutputEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/TransactionOutputEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/UTXOEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/UTXOEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/WalletEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/WalletEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Repositories/PriceRepository.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Repositories/SettingsRepository.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Repositories/TransactionMetadataRepository.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Repositories/WalletRepository.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/CoreDataStack.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Security/AuthenticationManager.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Security/SecureStorageService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/FeeOptimizationService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/FeeService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/NotificationService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/PriceServiceImpl.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/QRCodeService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionAccelerationStore.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionService+Acceleration.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionServiceImpl.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletBackupService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WatchOnlyWalletService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/Pool.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/PoolGroup.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/PoolProvider.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Utils/LRUCache.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Wallets.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/WalletDerivationService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Services/KeychainService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Services/StorageService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Colors/Colors.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Components/BalanceCard.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Components/PrimaryButton.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Typography/Typography.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Models/Transaction.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Models/Wallet.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Protocols/KeychainServiceProtocol.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Protocols/ServiceProtocols.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Protocols/TransactionAccelerationProtocols.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Protocols/TransactionsAdapterProtocol.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Protocols/WalletRepositoryProtocol.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/UseCases/CreateWalletUseCase.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/UseCases/SendBitcoinUseCase.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Coordinators/AppCoordinator.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Notifications/Notification.Name+Send.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Theme/ModernTheme.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/BalanceViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/BalanceWalletRowViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/CreateWalletViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/HomeViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/ReceiveViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/SendViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/TransactionsViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/UnlockViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Backup/BackupFlowView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Components/BiometricButton.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Components/CommonComponents.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Home/ModernHomeView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRDisplayView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRScannerView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/AddressFormatRow.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/ReceiveView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/BalanceView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/ContentView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/CreateWalletView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/HomeView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/TransactionsView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/UnlockView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/WalletDetailView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendFeeSelectorView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendTransactionConfirmationView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Shared/QRCodeGenerator.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Shared/SendReceiveShareSheet.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Transactions/ImportTransactionView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/MainTabView.swift /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/GeneratedAssetSymbols.swift -target arm64-apple-ios18.5-simulator -module-can-import CodeScanner -module-can-import-version DeveloperToolsSupport 23.0.4 23.0.4 -module-can-import-version SwiftUI 7.0.84.1 7.0.84 -module-can-import-version UIKit 9088.1.113 9088.1.113 -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET-dependencies-2.json -Xllvm -aarch64-use-tbi -enable-objc-interop -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -I /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=5 -module-cache-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -profile-generate -profile-coverage-mapping -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -serialize-debugging-options -const-gather-protocols-file /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL-ET_const_extract_protocols.json -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/thales/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/thales/Documents/GitHub/WALL-ET -enable-anonymous-context-mangled-names -file-compilation-dir /Users/thales/Documents/GitHub/WALL-ET -Xcc -fmodule-map-file\=/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/libsecp256k1.modulemap -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-3885c01c3e6b6a337905948deab2002e26257891a6c027eb51374368541b8346.sdkstatcache -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-generated-files.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-own-target-headers.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET-376dac9ee4a00476a6330d13c2742ec4-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/WALL-ET-project-headers.hmap -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/SourcePackages/checkouts/secp256k1.swift/Sources/libsecp256k1/include -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources-normal/arm64 -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/arm64 -Xcc -I/Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name WALL_ET -frontend-parseable-output -disable-clang-spi -target-sdk-version 26.0 -target-sdk-name iphonesimulator26.0 -clang-target arm64-apple-ios26.0-simulator -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -emit-module-doc-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET.swiftdoc -emit-module-source-info-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET.swiftsourceinfo -emit-objc-header-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET-Swift.h -serialize-diagnostics-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL-ET-primary-emit-module.dia -emit-dependencies-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL-ET-primary-emit-module.d -o /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET.swiftmodule -emit-abi-descriptor-path /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/Objects-normal/arm64/WALL_ET.abi.json
+SwiftCompile normal arm64 Compiling\ QRCodeService.swift,\ TransactionAccelerationStore.swift,\ TransactionService+Acceleration.swift,\ TransactionServiceImpl.swift,\ WalletBackupService.swift,\ WalletService.swift,\ WatchOnlyWalletService.swift,\ Pool.swift,\ PoolGroup.swift,\ PoolProvider.swift,\ LRUCache.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/QRCodeService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionAccelerationStore.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionService+Acceleration.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionServiceImpl.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletBackupService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WatchOnlyWalletService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/Pool.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/PoolGroup.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/PoolProvider.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Utils/LRUCache.swift (in target 'WALL-ET' from project 'WALL-ET')
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/QRCodeService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionAccelerationStore.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionService+Acceleration.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionServiceImpl.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletBackupService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WatchOnlyWalletService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/Pool.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/PoolGroup.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/TransactionsPool/PoolProvider.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Utils/LRUCache.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 Compiling\ TransactionsView.swift,\ UnlockView.swift,\ WalletDetailView.swift,\ SendFeeSelectorView.swift,\ SendTransactionConfirmationView.swift,\ SendView.swift,\ QRCodeGenerator.swift,\ SendReceiveShareSheet.swift,\ ImportTransactionView.swift,\ MainTabView.swift,\ GeneratedAssetSymbols.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/TransactionsView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/UnlockView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/WalletDetailView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendFeeSelectorView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendTransactionConfirmationView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Shared/QRCodeGenerator.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Shared/SendReceiveShareSheet.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Transactions/ImportTransactionView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/MainTabView.swift /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'WALL-ET' from project 'WALL-ET')
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/TransactionsView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/UnlockView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/WalletDetailView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendFeeSelectorView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendTransactionConfirmationView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Send/SendView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Shared/QRCodeGenerator.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Shared/SendReceiveShareSheet.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Transactions/ImportTransactionView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/MainTabView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Library/Developer/Xcode/DerivedData/WALL-ET-aobzzdthwullunffddliwgfrwdqy/Build/Intermediates.noindex/WALL-ET.build/Debug-iphonesimulator/WALL-ET.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 Compiling\ DefaultWalletRepository.swift,\ DefaultWalletRepository+Addresses.swift,\ DefaultWalletRepository+Wallets.swift,\ WalletDerivationService.swift,\ KeychainService.swift,\ StorageService.swift,\ Colors.swift,\ BalanceCard.swift,\ PrimaryButton.swift,\ Typography.swift,\ Transaction.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Wallets.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/WalletDerivationService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Services/KeychainService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Services/StorageService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Colors/Colors.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Components/BalanceCard.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Components/PrimaryButton.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Typography/Typography.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Models/Transaction.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Addresses.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/DefaultWalletRepository+Wallets.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Repositories/WalletDerivationService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Services/KeychainService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Data/Services/StorageService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Colors/Colors.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Components/BalanceCard.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Components/PrimaryButton.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/DesignSystem/Typography/Typography.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Domain/Models/Transaction.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 Compiling\ String+Extensions.swift,\ ElectrumService.swift,\ ElectrumService+Connection.swift,\ ElectrumService+Models.swift,\ ElectrumService+Requests.swift,\ ElectrumService+Subscriptions.swift,\ ElectrumService+Utilities.swift,\ PriceService.swift,\ Logger.swift,\ AddressEntity+CoreDataClass.swift,\ AddressEntity+CoreDataProperties.swift,\ PriceDataEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Extensions/String+Extensions.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Connection.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Models.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Requests.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Subscriptions.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Utilities.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/PriceService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Observability/Logger.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/AddressEntity+CoreDataClass.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/AddressEntity+CoreDataProperties.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/PriceDataEntity+CoreDataClass.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Extensions/String+Extensions.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Connection.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Models.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Requests.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Subscriptions.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/ElectrumService+Utilities.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Network/PriceService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Observability/Logger.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/AddressEntity+CoreDataClass.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/AddressEntity+CoreDataProperties.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Persistence/Entities/PriceDataEntity+CoreDataClass.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 Compiling\ ModernHomeView.swift,\ QRDisplayView.swift,\ QRScannerView.swift,\ AddressFormatRow.swift,\ ReceiveView.swift,\ BalanceView.swift,\ ContentView.swift,\ CreateWalletView.swift,\ HomeView.swift,\ SendReceiveView.swift,\ SettingsView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Home/ModernHomeView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRDisplayView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRScannerView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/AddressFormatRow.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/ReceiveView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/BalanceView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/ContentView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/CreateWalletView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/HomeView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Home/ModernHomeView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRDisplayView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRScannerView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/AddressFormatRow.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/ReceiveView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/BalanceView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/ContentView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/CreateWalletView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/HomeView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal arm64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftEmitModule normal x86_64 Emitting\ module\ for\ WALL_ET (in target 'WALL-ET' from project 'WALL-ET')
+
+EmitSwiftModule normal x86_64 (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 Compiling\ QRScannerView.swift,\ AddressFormatRow.swift,\ ReceiveView.swift,\ BalanceView.swift,\ ContentView.swift,\ CreateWalletView.swift,\ HomeView.swift,\ SendReceiveView.swift,\ SettingsView.swift,\ TransactionsView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRScannerView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/AddressFormatRow.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/ReceiveView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/BalanceView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/ContentView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/CreateWalletView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/HomeView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/TransactionsView.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRScannerView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/AddressFormatRow.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Receive/ReceiveView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/BalanceView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/ContentView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/CreateWalletView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/HomeView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SendReceiveView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/SettingsView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Screens/TransactionsView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 Compiling\ AppDelegate.swift,\ AppMain.swift,\ ElectrumTransactionsAdapter.swift,\ BitcoinService.swift,\ CryptoService.swift,\ MnemonicService.swift,\ TransactionDecoder.swift,\ TransactionService.swift,\ Constants.swift,\ RIPEMD160.swift,\ DIContainer.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/App/AppDelegate.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/App/AppMain.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Adapters/ElectrumTransactionsAdapter.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/BitcoinService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/CryptoService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/MnemonicService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/TransactionDecoder.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/TransactionService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Constants/Constants.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Crypto/RIPEMD160.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/DI/DIContainer.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/App/AppDelegate.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/App/AppMain.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Adapters/ElectrumTransactionsAdapter.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/BitcoinService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/CryptoService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/MnemonicService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/TransactionDecoder.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Bitcoin/TransactionService.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Constants/Constants.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Crypto/RIPEMD160.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/DI/DIContainer.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 Compiling\ HomeViewModel.swift,\ ReceiveViewModel.swift,\ SendViewModel.swift,\ TransactionsViewModel.swift,\ UnlockViewModel.swift,\ BackupFlowView.swift,\ BiometricButton.swift,\ CommonComponents.swift,\ ModernHomeView.swift,\ QRDisplayView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/HomeViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/ReceiveViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/SendViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/TransactionsViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/UnlockViewModel.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Backup/BackupFlowView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Components/BiometricButton.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Components/CommonComponents.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Home/ModernHomeView.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRDisplayView.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/HomeViewModel.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/ReceiveViewModel.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/SendViewModel.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/TransactionsViewModel.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/ViewModels/UnlockViewModel.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Backup/BackupFlowView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Components/BiometricButton.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Components/CommonComponents.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/Home/ModernHomeView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Presentation/Views/QRCode/QRDisplayView.swift (in target 'WALL-ET' from project 'WALL-ET')
+    cd /Users/thales/Documents/GitHub/WALL-ET
+    
+
+SwiftCompile normal x86_64 Compiling\ FeeOptimizationService.swift,\ FeeService.swift,\ NotificationService.swift,\ PriceServiceImpl.swift,\ QRCodeService.swift,\ TransactionAccelerationStore.swift,\ TransactionService+Acceleration.swift,\ TransactionServiceImpl.swift,\ WalletBackupService.swift,\ WalletService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/FeeOptimizationService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/FeeService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/NotificationService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/PriceServiceImpl.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/QRCodeService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionAccelerationStore.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionService+Acceleration.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/TransactionServiceImpl.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletBackupService.swift /Users/thales/Documents/GitHub/WALL-ET/WALL-ET/Core/Services/WalletService.swift (in target 'WALL-ET' from project 'WALL-ET')
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	EmitSwiftModule normal arm64 (in target 'WALL-ET' from project 'WALL-ET')
+	SwiftEmitModule normal arm64 Emitting\ module\ for\ WALL_ET (in target 'WALL-ET' from project 'WALL-ET')
+	Building project WALL-ET with scheme WALL-ET and configuration Debug
+(3 failures)

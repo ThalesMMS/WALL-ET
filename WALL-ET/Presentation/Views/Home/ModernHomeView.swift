@@ -14,8 +14,12 @@ struct ModernHomeView: View {
     @EnvironmentObject var coordinator: AppCoordinator
     @StateObject private var viewModel: HomeViewModel
 
-    init(viewModel: HomeViewModel = HomeViewModel()) {
+    init(viewModel: HomeViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
+    }
+    
+    init() {
+        _viewModel = StateObject(wrappedValue: HomeViewModel())
     }
     
     var body: some View {

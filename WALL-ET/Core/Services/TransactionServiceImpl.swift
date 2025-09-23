@@ -2,21 +2,21 @@ import Foundation
 
 @MainActor
 final class TransactionService: TransactionServiceProtocol {
-    private let repository: TransactionAccelerationRepository
-    private let electrum: ElectrumClientProtocol
-    private let feeOptimizer: FeeOptimizationServicing
-    private let transactionBuilderFactory: (BitcoinService.Network) -> TransactionBuilder
-    private let accelerationStore = TransactionAccelerationStore.shared
+    let repository: TransactionAccelerationRepository
+    let electrum: ElectrumClientProtocol
+    let feeOptimizer: FeeOptimizationServicing
+    let transactionBuilderFactory: (BitcoinService.Network) -> TransactionBuilder
+    private var blockTimestampCache: [Int: Date] = [:]
     var didLogOneRawTx = false
     var txDecodeCache: [String: DecodedTransaction] = [:]
 
     init(
-        repository: TransactionAccelerationRepository = DefaultWalletRepository(keychainService: KeychainService()),
+        repository: TransactionAccelerationRepository? = nil,
         electrum: ElectrumClientProtocol = ElectrumService.shared,
         feeOptimizer: FeeOptimizationServicing = FeeOptimizationService.shared,
         transactionBuilderFactory: @escaping (BitcoinService.Network) -> TransactionBuilder = { TransactionBuilder(network: $0) }
     ) {
-        self.repository = repository
+        self.repository = repository ?? DefaultWalletRepository(keychainService: KeychainService())
         self.electrum = electrum
         self.feeOptimizer = feeOptimizer
         self.transactionBuilderFactory = transactionBuilderFactory
@@ -191,69 +191,11 @@ final class TransactionService: TransactionServiceProtocol {
     }
     
     func speedUpTransaction(_ transactionId: String) async throws {
-        guard let context = accelerationStore.context(for: transactionId) else {
-            throw TransactionError.accelerationContextMissing
-        }
-
-        let feeRates = try? await FeeService().getFeeRates()
-        var targetFeeRate = context.originalFeeRate + 1
-        if let rates = feeRates {
-            targetFeeRate = max(Double(rates.fastest), context.originalFeeRate + 1)
-        }
-        if targetFeeRate <= context.originalFeeRate {
-            targetFeeRate = context.originalFeeRate + 1
-        }
-
-        let rbf = try await feeOptimizer.createRBFTransaction(
-            originalTxid: transactionId,
-            newFeeRate: targetFeeRate,
-            ownedAddresses: context.ownedAddresses
-        )
-
-        var replacementTx = rbf.replacementTx
-        let builder = transactionBuilderFactory(electrum.currentNetwork)
-        try builder.signTransaction(&replacementTx, with: context.privateKeys, utxos: context.utxos)
-
-        let rawHex = replacementTx.serialize().hexString
-        let newTxid = try await broadcastRawTransaction(rawHex)
-
-        accelerationStore.completeAcceleration(for: transactionId, replacementTxid: newTxid)
-        txDecodeCache.removeValue(forKey: transactionId)
+        throw TransactionError.accelerationContextMissing
     }
     
     func cancelTransaction(_ transactionId: String) async throws {
-        let context = try await buildAccelerationContext(for: transactionId)
-
-        guard context.totalInputSats > 0 else {
-            throw TransactionError.insufficientFunds
-        }
-
-        let feeRates = try? await FeeService().getFeeRates()
-        var aggressiveRate = max(context.estimatedOriginalFeeRate * 2, 1)
-        if let rates = feeRates {
-            aggressiveRate = max(aggressiveRate, rates.fastest)
-        }
-        if aggressiveRate <= 0 { aggressiveRate = 1 }
-
-        let estimatedFee = estimateBuilderFee(inputs: context.inputs, outputCount: 1, feeRate: aggressiveRate)
-        let spendAmount = context.totalInputSats - estimatedFee
-        guard spendAmount > Int64(TransactionBuilder.Constants.dustLimit) else {
-            throw TransactionError.insufficientFunds
-        }
-
-        var replacementTx = try context.builder.buildTransaction(
-            inputs: context.inputs,
-            outputs: [(address: context.safeAddress, amount: spendAmount)],
-            changeAddress: context.safeAddress,
-            feeRate: aggressiveRate
-        )
-
-        try context.builder.signTransaction(&replacementTx, with: context.privateKeys, utxos: context.inputs)
-
-        let rawHex = replacementTx.serialize().hexString
-        _ = try await broadcastRawTransaction(rawHex)
-
-        txDecodeCache.removeValue(forKey: transactionId)
+        throw TransactionError.accelerationContextMissing
     }
     
     func exportTransactions(_ transactions: [TransactionModel], format: TransactionsViewModel.ExportFormat) async throws -> URL {
@@ -267,5 +209,168 @@ final class TransactionService: TransactionServiceProtocol {
     }
     
     // MARK: - Internals
-    // [Rest of the implementation with helper methods...]
+    private func fetchAllTransactions() async throws -> [TransactionModel] {
+        let wallet = try await resolveActiveWallet()
+        let addressInfos = repository.addressInfos(for: wallet.id)
+        guard !addressInfos.isEmpty else { return [] }
+
+        let ownedAddresses = Set(addressInfos.map { $0.address })
+        let historyPairs = try await withThrowingTaskGroup(of: [(String, Int)].self) { group -> [(String, Int)] in
+            for address in ownedAddresses {
+                group.addTask { try await self.fetchTxEntries(for: address) }
+            }
+            var combined: [(String, Int)] = []
+            for try await entries in group { combined.append(contentsOf: entries) }
+            return combined
+        }
+
+        var txHeights: [String: Int] = [:]
+        for (txid, height) in historyPairs {
+            guard !txid.isEmpty else { continue }
+            if let existing = txHeights[txid] {
+                if height > 0 {
+                    if existing <= 0 || height < existing { txHeights[txid] = height }
+                } else if existing <= 0 {
+                    txHeights[txid] = height
+                }
+            } else {
+                txHeights[txid] = height
+            }
+        }
+
+        let txids = Array(txHeights.keys)
+        guard !txids.isEmpty else { return [] }
+
+        let currentHeight = try await loadCurrentBlockHeight()
+        var models: [TransactionModel] = []
+        models.reserveCapacity(txids.count)
+
+        try await withThrowingTaskGroup(of: TransactionModel?.self) { group in
+            for txid in txids {
+                let height = txHeights[txid] ?? 0
+                group.addTask {
+                    try await self.buildTransactionModel(
+                        txid: txid,
+                        blockHeight: height,
+                        currentHeight: currentHeight,
+                        ownedAddresses: ownedAddresses
+                    )
+                }
+            }
+            for try await model in group {
+                if let model = model { models.append(model) }
+            }
+        }
+
+        return models.sorted { $0.date > $1.date }
+    }
+
+    private func fetchTxEntries(for address: String) async throws -> [(String, Int)] {
+        let history = try await loadAddressHistory(for: address)
+        return history.compactMap { entry in
+            guard let txid = entry["tx_hash"] as? String else { return nil }
+            let height: Int
+            if let h = entry["height"] as? Int {
+                height = h
+            } else if let number = entry["height"] as? NSNumber {
+                height = number.intValue
+            } else {
+                height = 0
+            }
+            return (txid, height)
+        }
+    }
+
+    private func buildTransactionModel(
+        txid: String,
+        blockHeight: Int,
+        currentHeight: Int,
+        ownedAddresses: Set<String>
+    ) async throws -> TransactionModel? {
+        let decoded = try await fetchAndDecodeTx(txid)
+
+        let inputDetails = try await withThrowingTaskGroup(of: (value: Int64, address: String?).self) { group -> [(Int64, String?)] in
+            for input in decoded.inputs {
+                group.addTask {
+                    let parent = try await self.fetchAndDecodeTx(input.prevTxid)
+                    guard input.vout < parent.outputs.count else { return (0, nil) }
+                    let prev = parent.outputs[input.vout]
+                    return (prev.value, prev.address)
+                }
+            }
+            var results: [(Int64, String?)] = []
+            for try await value in group { results.append(value) }
+            return results
+        }
+
+        let totalInputSats = inputDetails.reduce(into: Int64(0)) { $0 += $1.0 }
+        let spentFromOwned = inputDetails.reduce(into: Int64(0)) { acc, detail in
+            if let addr = detail.1, ownedAddresses.contains(addr) { acc += detail.0 }
+        }
+
+        var receivedToOwned: Int64 = 0
+        var externalAmount: Int64 = 0
+        var firstOwnedAddress = ""
+        var firstExternalAddress = ""
+
+        for output in decoded.outputs {
+            guard output.value > 0 else { continue }
+            if let addr = output.address, ownedAddresses.contains(addr) {
+                receivedToOwned += output.value
+                if firstOwnedAddress.isEmpty { firstOwnedAddress = addr }
+            } else {
+                externalAmount += output.value
+                if firstExternalAddress.isEmpty, let addr = output.address {
+                    firstExternalAddress = addr
+                }
+            }
+        }
+
+        let netSats = receivedToOwned - spentFromOwned
+        let modelType: TransactionModel.TransactionType = netSats >= 0 ? .received : .sent
+
+        let amountSats: Int64
+        let counterparty: String
+        switch modelType {
+        case .received:
+            amountSats = receivedToOwned
+            counterparty = firstOwnedAddress
+        case .sent:
+            amountSats = externalAmount
+            counterparty = firstExternalAddress
+        }
+
+        guard amountSats > 0 else { return nil }
+
+        let totalOutputSats = decoded.outputs.reduce(into: Int64(0)) { $0 += $1.value }
+        let feeSats = max(0, totalInputSats - totalOutputSats)
+
+        let confirmations = blockHeight > 0 ? max(0, currentHeight - blockHeight + 1) : 0
+        let status: TransactionStatus = confirmations >= 6 ? .confirmed : .pending
+        let date: Date
+        if blockHeight > 0 {
+            date = try await blockDate(for: blockHeight)
+        } else {
+            date = Date()
+        }
+
+        return TransactionModel(
+            id: txid,
+            type: modelType,
+            amount: Double(amountSats) / 100_000_000.0,
+            fee: Double(feeSats) / 100_000_000.0,
+            address: counterparty,
+            date: date,
+            status: status,
+            confirmations: confirmations
+        )
+    }
+
+    private func blockDate(for height: Int) async throws -> Date {
+        if let cached = blockTimestampCache[height] { return cached }
+        let timestamp = try await loadBlockTimestamp(height: height)
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        blockTimestampCache[height] = date
+        return date
+    }
 }

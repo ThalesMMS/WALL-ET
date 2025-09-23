@@ -127,10 +127,10 @@ struct HomeView: View {
                 ImportWalletView()
             }
             .sheet(isPresented: $showSendSheet) {
-                SendView()
+                SendView(viewModel: SendViewModel())
             }
             .sheet(isPresented: $showReceiveSheet) {
-                ReceiveView()
+                ReceiveView(viewModel: ReceiveViewModel())
             }
         }
     }

@@ -132,7 +132,9 @@ extension DefaultWalletRepository {
         let addresses = persistence.getAddresses(for: entity, isChange: false)
         let count = addresses.count
         let first = addresses.first?.address ?? ""
-        logInfo("[Repo] mapWallet: entity=\(entity.name ?? \"Wallet\"), externalCount=\(count), first=\(first.isEmpty ? \"<empty>\" : first)")
+        let walletName = entity.name ?? "Wallet"
+        let firstAddress = first.isEmpty ? "<empty>" : first
+        logInfo("[Repo] mapWallet: entity=\(walletName), externalCount=\(count), first=\(firstAddress)")
 
         let accounts = addresses.compactMap { addressEntity -> Account? in
             guard let address = addressEntity.address else { return nil }

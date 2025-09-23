@@ -8,16 +8,16 @@ final class ElectrumService: NSObject {
     private(set) var currentServer: ElectrumServer
     private(set) var network: BitcoinService.Network
 
-    private var connection: NWConnection?
-    private let queue: DispatchQueue
-    private var pendingRequests: [Int: RequestHandler] = [:]
-    private var requestId: Int = 0
-    private let requestsLock = NSLock()
+    var connection: NWConnection?
+    let queue: DispatchQueue
+    var pendingRequests: [Int: RequestHandler] = [:]
+    var requestId: Int = 0
+    let requestsLock = NSLock()
 
-    private let addressMap = AddressMapping()
-    private let transactionCache = TransactionCache()
-    private var lastBlockHeight: Int = 0
-    private var didLogOneRawTx = false
+    let addressMap = AddressMapping()
+    let transactionCache = TransactionCache()
+    var lastBlockHeight: Int = 0
+    var didLogOneRawTx = false
 
     private let userDefaults: UserDefaults
 

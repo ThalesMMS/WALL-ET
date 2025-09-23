@@ -93,9 +93,9 @@ struct MainTabView: View {
     private func sheetContent(for sheet: AppCoordinator.Sheet) -> some View {
         switch sheet {
         case .send:
-            SendView()
+            SendView(viewModel: SendViewModel())
         case .receive:
-            ReceiveView()
+            ReceiveView(viewModel: ReceiveViewModel())
         case .scanQR:
             QRScannerView(
                 isPresented: Binding(

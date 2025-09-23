@@ -2,13 +2,13 @@ import Foundation
 
 @MainActor
 final class DefaultWalletRepository: WalletRepositoryProtocol {
-    private let persistence = WalletRepository()
-    private let keychain: KeychainServiceProtocol
-    private let electrum = ElectrumService.shared
-    private let bitcoin = BitcoinService(network: .testnet)
-    private let transactionsAdapter: TransactionsAdapterProtocol
-    private let derivationService: WalletDerivationServicing
-    private let transactionsPageLimit = 50
+    let persistence = WalletRepository()
+    let keychain: KeychainServiceProtocol
+    let electrum = ElectrumService.shared
+    let bitcoin = BitcoinService(network: .testnet)
+    let transactionsAdapter: TransactionsAdapterProtocol
+    let derivationService: WalletDerivationServicing
+    let transactionsPageLimit = 50
 
     init(
         keychainService: KeychainServiceProtocol,
