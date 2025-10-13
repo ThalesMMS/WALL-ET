@@ -1,6 +1,6 @@
-# WALL-ET Bitcoin Wallet
+# WALL-ET Bitcoin Wallet (Work in progress)
 
-App nativo e moderno para iOS, escrito em Swift 6, para gerenciamento de carteiras Bitcoin. Utiliza a arquitetura MVVM-C e os princípios da Clean Architecture para garantir escalabilidade, testabilidade e uma clara separação de responsabilidades.
+Native, modern iOS app written in Swift 6 for managing Bitcoin wallets. It uses the MVVM-C architecture and Clean Architecture principles to ensure scalability, testability, and a clear separation of responsibilities.
 
 ## Current Features (Testnet)
 
@@ -9,10 +9,10 @@ App nativo e moderno para iOS, escrito em Swift 6, para gerenciamento de carteir
   - Live balances via `blockchain.scripthash.get_balance` (sum over wallet addresses)
   - Transaction history via `…get_history` + verbose `…transaction.get` (computed net amounts, confirmations, status)
   - Broadcast raw transactions (`…transaction.broadcast`)
-- Build, sign and broadcast transactions on testnet (P2WPKH, signed with libsecp256k1)
-- Gap‑limit address discovery (m/84'/1'/0'/0/i) with persistence; ensures change path exists (m/…/1/0)
+- Build, sign, and broadcast transactions on testnet (P2WPKH, signed with libsecp256k1)
+- Gap-limit address discovery (m/84'/1'/0'/0/i) with persistence; ensures change path exists (m/…/1/0)
 - Create wallet from mnemonic (24 words) and import mnemonic; keys stored securely in Keychain
-- Real QR scanning with CodeScanner; supports BBQR multi‑part progress UI
+- Real QR scanning with CodeScanner; supports BBQR multi-part progress UI
 - Send / Receive only (Swap/Buy removed)
 - Manage Wallets shows real Core Data items; delete, navigate to Wallet detail
 - Empty states on Home/Transactions with Create/Import actions
@@ -25,178 +25,126 @@ Notes
 
 * * *
 
-## Estrutura de Diretórios Detalhada
+## Detailed Directory Structure
 
-A estrutura de diretórios proposta é excelente e segue as melhores práticas da Clean Architecture. Aqui está um detalhamento do que cada diretório irá conter:
+The proposed directory structure follows Clean Architecture best practices. Each folder contains:
 
     WALL-ET/
-    ├── App/                             # Ponto de entrada, ciclo de vida e configurações globais
-    │   ├── AppMain.swift                # A struct principal com @main que define a WindowGroup
-    │   ├── AppDelegate.swift            # Para integrações com serviços de terceiros (ex: Push Notifications)
-    │   ├── Configuration/               # Arquivos .xcconfig para Debug/Release/Staging
+    ├── App/                             # Entry point, lifecycle, and global configuration
+    │   ├── AppMain.swift                # Primary @main struct defining the WindowGroup
+    │   ├── AppDelegate.swift            # Integrations with third-party services (e.g., push notifications)
+    │   ├── Configuration/               # .xcconfig files for Debug/Release/Staging
     │   └── Privacy/                     # PrivacyInfo.xcprivacy
     │
-    ├── Core/                            # Utilitários de baixo nível, agnósticos à aplicação
-    │   ├── Concurrency/                 # Helpers para async/await, @MainActor, etc.
-    │   ├── Constants/                   # Chaves de UserDefaults, margens de UI, URLs fixas
-    │   ├── DI/                          # Contêiner de Injeção de Dependência (Swinject ou manual)
-    │   ├── Extensions/                  # Extensões para tipos nativos (Date, String, etc.)
-    │   └── Observability/               # Logging estruturado, métricas de performance (Firebase, etc.)
+    ├── Core/                            # Low-level, app-agnostic utilities
+    │   ├── Concurrency/                 # Helpers for async/await, @MainActor, etc.
+    │   ├── Constants/                   # UserDefaults keys, UI insets, fixed URLs
+    │   ├── DI/                          # Dependency Injection container (Swinject or manual)
+    │   ├── Extensions/                  # Extensions for native types (Date, String, etc.)
+    │   └── Observability/               # Structured logging, performance metrics (Firebase, etc.)
     │
-    ├── Data/                            # Implementações concretas de protocolos do Domínio
-    │   ├── DTOs/                        # Data Transfer Objects (respostas de API)
-    │   ├── Mappers/                     # Conversores de DTO para Modelos de Domínio e vice-versa
-    │   ├── Repositories/                # Implementações dos repositórios (ex: WalletRepositoryImpl)
-    │   └── Services/                    # Serviços de infraestrutura (APIService, KeychainService, DatabaseService)
+    ├── Data/                            # Concrete implementations of Domain protocols
+    │   ├── DTOs/                        # Data Transfer Objects (API responses)
+    │   ├── Mappers/                     # Converters between DTOs and Domain models
+    │   ├── Repositories/                # Repository implementations (e.g., WalletRepositoryImpl)
+    │   └── Services/                    # Infrastructure services (APIService, KeychainService, DatabaseService)
     │
-    ├── DesignSystem/                    # Camada de design compartilhada e reutilizável
-    │   ├── Colors/                      # Paleta de cores para light/dark mode
-    │   ├── Components/                  # Componentes genéricos (PrimaryButton, AddressTextView, BalanceHeaderView)
-    │   ├── Typography/                  # Estilos e fontes da aplicação (Font Tokens)
-    │   └── Assets.xcassets              # Ícones, logos, imagens
+    ├── DesignSystem/                    # Shared, reusable design layer
+    │   ├── Colors/                      # Color palette for light/dark mode
+    │   ├── Components/                  # Generic components (PrimaryButton, AddressTextView, BalanceHeaderView)
+    │   ├── Typography/                  # App typography definitions (font tokens)
+    │   └── Assets.xcassets              # Icons, logos, images
     │
-    ├── Domain/                          # Regras de negócio puras (independente de UI e Data)
-    │   ├── Models/                      # Entidades centrais (Account, Wallet, Transaction, Blockchain)
-    │   ├── Protocols/                   # Contratos/interfaces (ex: IWalletRepository, ISendHandler)
-    │   └── UseCases/                    # Orquestração do domínio (ex: CreateWalletUseCase, SendBitcoinUseCase)
+    ├── Domain/                          # Pure business rules (independent from UI and Data)
+    │   ├── Models/                      # Core entities (Account, Wallet, Transaction, Blockchain)
+    │   ├── Protocols/                   # Contracts/interfaces (e.g., IWalletRepository, ISendHandler)
+    │   └── UseCases/                    # Domain orchestration (e.g., CreateWalletUseCase, SendBitcoinUseCase)
     │
-    ├── Presentation/                    # Camada MVVM-C que conecta Domínio <-> UI
-    │   ├── Coordinators/                # Controladores de fluxo de navegação (AppCoordinator, SendCoordinator)
-    │   ├── ViewModels/                  # Estado e lógica das telas (BalanceViewModel, SendViewModel)
-    │   └── Views/                       # Interface em SwiftUI
-    │       ├── Screens/                 # Telas completas (BalanceView, SendView, SettingsView)
-    │       └── Components/              # Componentes de UI específicos de uma feature
+    ├── Presentation/                    # MVVM-C layer bridging Domain and UI
+    │   ├── Coordinators/                # Navigation flow controllers (AppCoordinator, SendCoordinator)
+    │   ├── ViewModels/                  # Screen state and logic (BalanceViewModel, SendViewModel)
+    │   └── Views/                       # SwiftUI interface
+    │       ├── Screens/                 # Complete screens (BalanceView, SendView, SettingsView)
+    │       └── Components/              # Feature-specific UI components
     │
-    ├── Resources/                       # Recursos estáticos (arquivos de localização .strings)
-    └── Tooling/                         # Scripts de build, CI/CD, linters
-    
+    ├── Resources/                       # Static resources (.strings localization files)
+    └── Tooling/                         # Build scripts, CI/CD, linters
 
 * * *
 
-## Destaques Técnicos
+## Technical Highlights
 
-*   **Clean Architecture**: Garante que a lógica de negócios seja independente de frameworks, tornando a aplicação mais robusta e fácil de testar.
-    
-*   **MVVM-C**: Separa a lógica de apresentação (ViewModel) da navegação (Coordinator), mantendo as Views (SwiftUI) limpas e declarativas.
-    
-*   **Protocol-Oriented Programming**: Uso intensivo de protocolos para inversão de dependência, facilitando a substituição de implementações e a criação de mocks para testes.
-    
-*   **Swift Concurrency**: Utilização de `async/await` para um código assíncrono mais limpo e seguro.
-    
-*   **Injeção de Dependência**: Elimina o uso de singletons, tornando as dependências explícitas e o código mais modular.
-    
+* **Clean Architecture**: Keeps business logic independent from frameworks, making the app more robust and easier to test.
+* **MVVM-C**: Separates presentation logic (ViewModel) from navigation (Coordinator) while keeping SwiftUI views declarative.
+* **Protocol-Oriented Programming**: Heavy use of protocols for dependency inversion, simplifying replacements and mocks for testing.
+* **Swift Concurrency**: Uses `async/await` to keep asynchronous code clear and safe.
+* **Dependency Injection**: Avoids singletons, making dependencies explicit and the code more modular.
 
 * * *
 
-## Funcionalidades e Telas Principais
+## Features and Primary Screens
 
 ### Core Features
 
-*   **Gerenciamento Multi-Conta**: Suporte para múltiplas contas (carteiras), permitindo ao usuário alternar entre elas.
-    
-*   **Criação e Restauração**:
-    
-    *   **Criação**: Geração de novas carteiras com seed phrase (mnemônico) de 12 ou 24 palavras.
-        
-    *   **Restauração**: Importação de carteiras existentes via Mnemonic (BIP39 e não-padrão), Chave Privada, ou Endereço Público (modo "Watch-Only").
-        
-*   **Segurança Avançada**:
-    
-    *   Proteção por senha e biometria (Face ID/Touch ID).
-        
-    *   **Modo Coação (Duress Mode)**: Uma senha secundária que, quando inserida, abre um conjunto diferente de carteiras, protegendo o usuário em situações de risco.
-        
-*   **Gerenciamento de Taxas (Bitcoin)**: Estimativa de taxas de transação e opções avançadas como Replace-by-Fee (RBF).
-    
+* **Multi-Account Management**: Supports multiple wallets, allowing the user to switch between them.
+* **Creation and Restoration**:
+  * **Creation**: Generates new wallets with a 12- or 24-word seed phrase.
+  * **Restoration**: Imports existing wallets via mnemonic (BIP39 and non-standard), private key, or public address (watch-only mode).
+* **Advanced Security**:
+  * Password and biometric protection (Face ID/Touch ID).
+  * **Duress Mode**: A secondary password that opens a different set of wallets to protect the user in high-risk situations.
+* **Fee Management (Bitcoin)**: Transaction fee estimation and advanced options such as Replace-by-Fee (RBF).
 
-### 1\. Tela de Saldo (Balance)
+### 1. Balance Screen
 
-A tela principal do aplicativo, onde o usuário visualiza seus ativos.
+The primary screen where the user views their assets.
 
-*   **Saldo Total**: Exibido na moeda fiduciária base selecionada pelo usuário, com a opção de ocultar valores.
-    
-*   **Lista de Carteiras**: Uma lista de todas as carteiras ativas, cada uma exibindo:
-    
-    *   Ícone e nome da criptomoeda (ex: Bitcoin).
-        
-    *   Saldo em criptomoeda e seu equivalente fiduciário.
-        
-    *   Variação de preço nas últimas 24h.
-        
-    *   Status de sincronização.
-        
-*   **Ações Rápidas**: Botões principais para **Enviar**, **Receber** e **Escanear QR Code**.
-    
-*   **Gerenciamento e Ordenação**:
-    
-    *   Botão para acessar a tela "Gerenciar Carteiras" (adicionar/remover moedas).
-        
-    *   Opções para ordenar a lista por saldo, nome ou variação de preço.
-        
-*   **Pull-to-Refresh**: Atualiza todos os saldos e preços.
-    
+* **Total Balance**: Displayed in the user's base fiat currency with an option to hide values.
+* **Wallet List**: Displays each active wallet with:
+  * Cryptocurrency icon and name (e.g., Bitcoin).
+  * Balance in crypto and its fiat equivalent.
+  * Price change over the last 24 hours.
+  * Synchronization status.
+* **Quick Actions**: Primary buttons for **Send**, **Receive**, and **Scan QR Code**.
+* **Management and Sorting**:
+  * Button to open the "Manage Wallets" screen (add/remove assets).
+  * Options to sort by balance, name, or price change.
+* **Pull-to-Refresh**: Updates balances and prices.
 
-### 2\. Tela de Transações
+### 2. Transactions Screen
 
-Um histórico completo de todas as transações, com opções avançadas de filtragem.
+A complete history of all transactions with advanced filtering options.
 
-*   **Lista de Transações**: Agrupada por data ("Hoje", "Ontem", etc.). Cada item exibe:
-    
-    *   Tipo de transação (ícone de envio, recebimento, etc.).
-        
-    *   Destinatário/remetente.
-        
-    *   Valor principal (em cripto) e valor secundário (em fiat).
-        
-    *   Status (Pendente, Confirmada, Falhou).
-        
-*   **Filtros Avançados**: Um painel de filtros para refinar a lista por:
-    
-    *   **Blockchain**: Exibir transações de apenas uma rede (ex: Bitcoin).
-        
-    *   **Token**: Filtrar por uma criptomoeda específica.
-        
-    *   **Contato**: Mostrar transações de ou para um contato salvo.
-        
-    *   **Tipo**: Filtrar por Enviadas, Recebidas, Swap, Aprovações.
-        
-    *   **Ocultar Transações Suspeitas**: Filtro para remover possíveis transações de spam.
-        
-*   **Tela de Detalhes da Transação**:
-    
-    *   Informações completas: status, data, valor, taxa de rede, remetente, destinatário.
-        
-    *   Link para visualizar a transação em um explorador de blocos.
-        
-    *   Opções de **Acelerar (Speed Up)** ou **Cancelar (Cancel)** para transações Bitcoin com RBF habilitado.
-        
+* **Transaction List**: Grouped by date ("Today", "Yesterday", etc.). Each item shows:
+  * Transaction type (send, receive, etc. icon).
+  * Recipient/sender.
+  * Primary amount (crypto) and secondary amount (fiat).
+  * Status (Pending, Confirmed, Failed).
+* **Advanced Filters**: A filter panel to refine by:
+  * **Blockchain**: Show transactions from a single network (e.g., Bitcoin).
+  * **Token**: Filter by a specific cryptocurrency.
+  * **Contact**: Display transactions to or from a saved contact.
+  * **Type**: Filter by Sent, Received, Swap, Approvals.
+  * **Hide Suspicious Transactions**: Filter to remove potential spam transactions.
+* **Transaction Detail Screen**:
+  * Detailed information: status, date, amount, network fee, sender, recipient.
+  * Link to view the transaction on a block explorer.
+  * **Speed Up** or **Cancel** options for Bitcoin transactions with RBF enabled.
 
-### 3\. Tela de Configurações
+### 3. Settings Screen
 
-Central de personalização e segurança do aplicativo.
+The hub for personalization and security.
 
-*   **Gerenciar Carteiras**: Adicionar novas carteiras, criar, restaurar ou visualizar as *seed phrases* das existentes.
-    
-*   **Segurança**:
-    
-    *   **Senha**: Ativar/desativar, alterar senha.
-        
-    *   **Biometria**: Ativar Face ID/Touch ID.
-        
-    *   **Auto-Lock**: Definir tempo para bloqueio automático do app.
-        
-    *   **Modo Coação**: Configurar uma senha alternativa e selecionar as carteiras a serem exibidas.
-        
-*   **Aparência**:
-    
-    *   **Tema**: Claro, Escuro ou Automático (Sistema).
-        
-    *   **Moeda Base**: Selecionar a moeda fiduciária principal (USD, BRL, EUR, etc.).
-        
-    *   **Ícone do App**: Permitir que o usuário escolha entre diferentes ícones.
-        
-*   **Backup do App**: Funcionalidade para criar um backup criptografado de todas as carteiras, configurações e contatos, salvando em um arquivo local ou na nuvem (iCloud).
-    
-*   **Conexões dApp (WalletConnect)**: Visualizar e gerenciar sessões ativas com aplicações descentralizadas.
-    
-*   **Sobre**: Informações da versão do app, links para redes sociais, site oficial e termos de serviço.
+* **Manage Wallets**: Add new wallets, create, restore, or view existing seed phrases.
+* **Security**:
+  * **Password**: Enable/disable and change the password.
+  * **Biometrics**: Enable Face ID/Touch ID.
+  * **Auto-Lock**: Define the automatic lock timer.
+  * **Duress Mode**: Configure an alternate password and select which wallets appear.
+* **Appearance**:
+  * **Theme**: Light, Dark, or Automatic (System).
+  * **Base Currency**: Choose the main fiat currency (USD, BRL, EUR, etc.).
+  * **App Icon**: Allow the user to choose between different icons.
+* **App Backup**: Create an encrypted backup of wallets, settings, and contacts, saving to a local file or iCloud.
+* **dApp Connections (WalletConnect)**: View and manage active sessions with decentralized applications.
+* **About**: App version information, links to social networks, official website, and terms of service.

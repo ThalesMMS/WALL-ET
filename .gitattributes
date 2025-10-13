@@ -1,0 +1,39 @@
+* text=auto eol=lf
+
+# Project files
+*.pbxproj merge=union
+*.xcworkspace/contents.xcworkspacedata text merge=union
+*.xcworkspacedata text merge=union
+*.xccheckout binary
+*.xcscmblueprint binary
+
+# Source files
+*.swift text
+*.h text
+*.m text
+*.mm text
+*.c text
+*.cc text
+*.cpp text
+*.hpp text
+*.metal text
+*.strings text
+*.plist text
+*.xib text
+*.storyboard text
+*.md text
+*.sh text
+
+# Assets
+*.xcassets binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg text
+*.pdf binary
+
+# Archives
+*.xcarchive binary
+*.ipa binary
+*.dSYM binary

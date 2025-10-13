@@ -1,6 +1,46 @@
-/.build
-/build
-/bip39-master
+# Build artifacts
+/build/
+/.build/
+/DerivedData/
+DerivedData/
+
+# Swift Package Manager
+/.swiftpm/
+/Packages/
+/Package.pins
+
+# Xcode
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+project.xcworkspace/xcuserdata/
+
+# Carthage
+Carthage/Build/
+
+# CocoaPods
+Pods/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Swift Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# macOS
 .DS_Store
-/UnstoppableWallet
-.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.tmp
+*.orig
