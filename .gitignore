@@ -44,3 +44,4 @@ playground.xcworkspace
 *.swp
 *.tmp
 *.orig
+.DS_Store
