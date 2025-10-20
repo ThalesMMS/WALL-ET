@@ -63,7 +63,7 @@ class HomeViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: .walletUpdated)
             .sink { [weak self] _ in
                 Task {
-                    await self?.loadWallets()
+                    await self?.loadWallets(skipRefresh: true)
                 }
             }
             .store(in: &cancellables)
@@ -90,9 +90,23 @@ class HomeViewModel: ObservableObject {
         calculateTotalBalance()
     }
     
-    private func loadWallets() async {
+    private func loadWallets(skipRefresh: Bool = false) async {
         do {
-            wallets = try await walletService.fetchWallets()
+            let cached = try await walletService.fetchWallets()
+            wallets = cached
+            calculateTotalBalance()
+
+            guard !skipRefresh, !cached.isEmpty else { return }
+
+            do {
+                let refreshed = try await walletService.refreshWalletBalances()
+                if !refreshed.isEmpty {
+                    wallets = refreshed
+                    calculateTotalBalance()
+                }
+            } catch {
+                logError("Failed to refresh wallet balances: \(error)")
+            }
         } catch {
             handleError(error)
         }
@@ -262,13 +276,85 @@ struct WalletModel: Identifiable, Codable {
     let name: String
     let address: String
     let balance: Double
+    let confirmedBalance: Double
+    let unconfirmedBalance: Double
     let isTestnet: Bool
     let derivationPath: String
     let createdAt: Date
-    
+    let lastBalanceUpdate: Date?
+
+    init(
+        id: UUID,
+        name: String,
+        address: String,
+        confirmedBalance: Double,
+        unconfirmedBalance: Double,
+        isTestnet: Bool,
+        derivationPath: String,
+        createdAt: Date,
+        lastBalanceUpdate: Date? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.address = address
+        self.confirmedBalance = confirmedBalance
+        self.unconfirmedBalance = unconfirmedBalance
+        self.balance = confirmedBalance + unconfirmedBalance
+        self.isTestnet = isTestnet
+        self.derivationPath = derivationPath
+        self.createdAt = createdAt
+        self.lastBalanceUpdate = lastBalanceUpdate
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case address
+        case balance
+        case confirmedBalance
+        case unconfirmedBalance
+        case isTestnet
+        case derivationPath
+        case createdAt
+        case lastBalanceUpdate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        address = try container.decode(String.self, forKey: .address)
+        let confirmed = try container.decodeIfPresent(Double.self, forKey: .confirmedBalance)
+        let unconfirmed = try container.decodeIfPresent(Double.self, forKey: .unconfirmedBalance)
+        let legacyBalance = try container.decodeIfPresent(Double.self, forKey: .balance) ?? 0
+        confirmedBalance = confirmed ?? legacyBalance
+        unconfirmedBalance = unconfirmed ?? 0
+        balance = confirmedBalance + unconfirmedBalance
+        isTestnet = try container.decode(Bool.self, forKey: .isTestnet)
+        derivationPath = try container.decode(String.self, forKey: .derivationPath)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        lastBalanceUpdate = try container.decodeIfPresent(Date.self, forKey: .lastBalanceUpdate)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(address, forKey: .address)
+        try container.encode(balance, forKey: .balance)
+        try container.encode(confirmedBalance, forKey: .confirmedBalance)
+        try container.encode(unconfirmedBalance, forKey: .unconfirmedBalance)
+        try container.encode(isTestnet, forKey: .isTestnet)
+        try container.encode(derivationPath, forKey: .derivationPath)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(lastBalanceUpdate, forKey: .lastBalanceUpdate)
+    }
+
     var displayAddress: String {
         String(address.prefix(10)) + "..." + String(address.suffix(6))
     }
+
+    var hasUnconfirmedFunds: Bool { unconfirmedBalance > 0 }
 }
 
 struct TransactionModel: Identifiable, Codable {

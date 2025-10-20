@@ -434,6 +434,52 @@ struct EmptyTransactionView: View {
         let variation = Double(hour * hour) * -12 + Double(hour) * 140
         return PricePoint(date: date, price: base + variation)
     }.sorted { $0.date < $1.date }
+    previewViewModel.wallets = [
+        WalletModel(
+            id: UUID(),
+            name: "Primary Wallet",
+            address: "bc1qprimarywallet000000000000000000000000000",
+            confirmedBalance: 0.45,
+            unconfirmedBalance: 0.02,
+            isTestnet: false,
+            derivationPath: "m/84'/0'/0'",
+            createdAt: Date().addingTimeInterval(-86_400),
+            lastBalanceUpdate: Date()
+        ),
+        WalletModel(
+            id: UUID(),
+            name: "Testnet Watch",
+            address: "tb1qtestwallet0000000000000000000000000000",
+            confirmedBalance: 0.0,
+            unconfirmedBalance: 0.12,
+            isTestnet: true,
+            derivationPath: "m/84'/1'/0'",
+            createdAt: Date().addingTimeInterval(-604_800),
+            lastBalanceUpdate: Date()
+        )
+    ]
+    previewViewModel.recentTransactions = [
+        TransactionModel(
+            id: UUID().uuidString,
+            type: .received,
+            amount: 0.05,
+            fee: 0.0001,
+            address: "bc1qprimarywallet000000000000000000000000000",
+            date: Date().addingTimeInterval(-3_600),
+            status: .confirmed,
+            confirmations: 12
+        ),
+        TransactionModel(
+            id: UUID().uuidString,
+            type: .sent,
+            amount: 0.01,
+            fee: 0.00005,
+            address: "bc1qrecipient0000000000000000000000000000",
+            date: Date().addingTimeInterval(-9_000),
+            status: .pending,
+            confirmations: 1
+        )
+    ]
 
     return ModernHomeView(viewModel: previewViewModel)
         .environmentObject(AppCoordinator())
