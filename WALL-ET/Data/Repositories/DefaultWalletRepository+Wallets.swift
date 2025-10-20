@@ -111,6 +111,14 @@ extension DefaultWalletRepository {
         }
     }
 
+    func getBalances(for addresses: [String]) async throws -> [String: Balance] {
+        var results: [String: Balance] = [:]
+        for address in Set(addresses).filter({ !$0.isEmpty }) {
+            results[address] = try await getBalance(for: address)
+        }
+        return results
+    }
+
     func getTransactions(for address: String) async throws -> [Transaction] {
         let models = try await transactionsAdapter.transactionsSingle(
             paginationData: nil,
