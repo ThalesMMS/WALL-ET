@@ -453,13 +453,15 @@ final class SendViewModel: ObservableObject {
     }
 
     private func resolveActiveWallet() async throws -> Wallet {
-        if let activeWallet {
-            return activeWallet
+        if let wallet = walletRepository.getActiveWallet() {
+            if wallet.id != activeWallet?.id {
+                activeWallet = wallet
+            }
+            return wallet
         }
 
-        if let wallet = walletRepository.getActiveWallet() {
-            activeWallet = wallet
-            return wallet
+        if let activeWallet {
+            return activeWallet
         }
 
         let wallets = try await walletRepository.getAllWallets()

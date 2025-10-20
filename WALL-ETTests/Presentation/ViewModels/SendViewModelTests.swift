@@ -229,6 +229,53 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showConfirmation)
         XCTAssertFalse(viewModel.isSending)
     }
+
+    func testConfirmTransactionUsesUpdatedActiveWallet() async throws {
+        let walletOne = Wallet(
+            name: "Wallet One",
+            type: .testnet,
+            accounts: [
+                Account(index: 0, address: "tb1qwalletone000000000000000000000000000000", publicKey: "pubkey1")
+            ]
+        )
+
+        let walletTwo = Wallet(
+            name: "Wallet Two",
+            type: .testnet,
+            accounts: [
+                Account(index: 0, address: "tb1qwallettwo000000000000000000000000000000", publicKey: "pubkey2")
+            ]
+        )
+
+        let walletRepository = MockWalletRepository()
+        walletRepository.wallets = [walletOne, walletTwo]
+        walletRepository.activeWallet = walletOne
+
+        let useCase = MockSendBitcoinUseCase()
+
+        let viewModel = SendViewModel(
+            walletRepository: walletRepository,
+            sendBitcoinUseCase: useCase,
+            skipInitialLoad: true
+        )
+
+        viewModel.recipientAddress = "tb1qrecipient0000000000000000000000000000000"
+        viewModel.btcAmount = "0.01000000"
+
+        await viewModel.confirmTransaction()
+
+        XCTAssertTrue(useCase.executeCalled)
+        XCTAssertEqual(useCase.capturedRequest?.fromWallet.id, walletOne.id)
+
+        walletRepository.activeWallet = walletTwo
+        useCase.executeCalled = false
+
+        await viewModel.confirmTransaction()
+
+        XCTAssertTrue(useCase.executeCalled)
+        XCTAssertEqual(useCase.capturedRequest?.fromWallet.id, walletTwo.id)
+        XCTAssertEqual(walletRepository.resolveActiveWalletCalls, 2)
+    }
 }
 
 // MARK: - Test Doubles
