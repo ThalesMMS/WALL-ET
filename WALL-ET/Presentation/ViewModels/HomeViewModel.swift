@@ -63,7 +63,7 @@ class HomeViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: .walletUpdated)
             .sink { [weak self] _ in
                 Task {
-                    await self?.loadWallets()
+                    await self?.loadWallets(skipRefresh: true)
                 }
             }
             .store(in: &cancellables)
@@ -90,13 +90,13 @@ class HomeViewModel: ObservableObject {
         calculateTotalBalance()
     }
     
-    private func loadWallets() async {
+    private func loadWallets(skipRefresh: Bool = false) async {
         do {
             let cached = try await walletService.fetchWallets()
             wallets = cached
             calculateTotalBalance()
 
-            guard !cached.isEmpty else { return }
+            guard !skipRefresh, !cached.isEmpty else { return }
 
             do {
                 let refreshed = try await walletService.refreshWalletBalances()
