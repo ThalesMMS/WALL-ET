@@ -58,6 +58,7 @@ private final class WalletRepositoryMock: WalletRepositoryProtocol {
     func getWallet(by id: UUID) async throws -> Wallet? { fatalError("Not implemented") }
     func updateWallet(_ wallet: Wallet) async throws { fatalError("Not implemented") }
     func deleteWallet(by id: UUID) async throws { fatalError("Not implemented") }
+    func getActiveWallet() -> Wallet? { nil }
 
     func getBalance(for address: String) async throws -> Balance {
         balances[address] ?? Balance()

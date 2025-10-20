@@ -68,9 +68,66 @@ final class SendViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "Unsupported QR code content.")
     }
 
+    func testHandleAppearLoadsBalanceForActiveWallet() async {
+        let walletOne = Wallet(
+            id: UUID(),
+            name: "Wallet One",
+            type: .testnet,
+            accounts: [Account(index: 0, address: "tb1qwallet1ext", publicKey: "pub1")]
+        )
+
+        let walletTwo = Wallet(
+            id: UUID(),
+            name: "Wallet Two",
+            type: .testnet,
+            accounts: [Account(index: 0, address: "tb1qwallet2ext", publicKey: "pub2")]
+        )
+
+        let repository = MockWalletRepository()
+        repository.wallets = [walletOne, walletTwo]
+        repository.activeWallet = walletTwo
+        repository.addressesByWallet[walletOne.id] = ["tb1qwallet1ext", "tb1qwallet1chg"]
+        repository.addressesByWallet[walletTwo.id] = ["tb1qwallet2ext", "tb1qwallet2chg"]
+        repository.balanceByAddress = [
+            "tb1qwallet1ext": Balance(confirmed: 1_000_000_000),
+            "tb1qwallet1chg": Balance(confirmed: 500_000_000),
+            "tb1qwallet2ext": Balance(confirmed: 2_000_000_000),
+            "tb1qwallet2chg": Balance(confirmed: 300_000_000, unconfirmed: 100_000_000)
+        ]
+
+        let priceService = MockPriceService(price: PriceData(
+            price: 10_000,
+            change24h: 0,
+            changePercentage24h: 0,
+            volume24h: 0,
+            marketCap: 0,
+            currency: "USD",
+            timestamp: Date()
+        ))
+
+        let viewModel = SendViewModel(
+            walletRepository: repository,
+            priceService: priceService,
+            sendBitcoinUseCase: MockSendBitcoinUseCase()
+        )
+
+        await viewModel.handleAppear()
+
+        XCTAssertEqual(viewModel.availableBalance, 24.0, accuracy: 0.00000001)
+        XCTAssertEqual(repository.resolveActiveWalletCalls, 1)
+    }
+
     func testConfirmTransactionSuccess() async throws {
-        let wallet = Wallet(
-            name: "Test Wallet",
+        let inactiveWallet = Wallet(
+            name: "Inactive Wallet",
+            type: .testnet,
+            accounts: [
+                Account(index: 0, address: "tb1qinactive000000000000000000000000000000", publicKey: "pubkey")
+            ]
+        )
+
+        let activeWallet = Wallet(
+            name: "Active Wallet",
             type: .testnet,
             accounts: [
                 Account(index: 0, address: "tb1qrecipient0000000000000000000000000000000", publicKey: "pubkey")
@@ -78,7 +135,8 @@ final class SendViewModelTests: XCTestCase {
         )
 
         let walletRepository = MockWalletRepository()
-        walletRepository.wallets = [wallet]
+        walletRepository.wallets = [inactiveWallet, activeWallet]
+        walletRepository.activeWallet = activeWallet
         walletRepository.balance = Balance(confirmed: 5_000_000_000)
 
         let useCase = MockSendBitcoinUseCase()
@@ -113,6 +171,7 @@ final class SendViewModelTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 1.0)
 
         XCTAssertTrue(useCase.executeCalled)
+        XCTAssertEqual(useCase.capturedRequest?.fromWallet.id, activeWallet.id)
         XCTAssertEqual(useCase.capturedRequest?.amount, 10_000_000)
         XCTAssertEqual(useCase.capturedRequest?.memo, "Test memo")
         XCTAssertFalse(viewModel.showConfirmation)
@@ -127,8 +186,16 @@ final class SendViewModelTests: XCTestCase {
             var errorDescription: String? { "Unable to send" }
         }
 
-        let wallet = Wallet(
-            name: "Test Wallet",
+        let inactiveWallet = Wallet(
+            name: "Inactive Wallet",
+            type: .testnet,
+            accounts: [
+                Account(index: 0, address: "tb1qinactive000000000000000000000000000000", publicKey: "pubkey")
+            ]
+        )
+
+        let activeWallet = Wallet(
+            name: "Active Wallet",
             type: .testnet,
             accounts: [
                 Account(index: 0, address: "tb1qrecipient0000000000000000000000000000000", publicKey: "pubkey")
@@ -136,7 +203,8 @@ final class SendViewModelTests: XCTestCase {
         )
 
         let walletRepository = MockWalletRepository()
-        walletRepository.wallets = [wallet]
+        walletRepository.wallets = [inactiveWallet, activeWallet]
+        walletRepository.activeWallet = activeWallet
         walletRepository.balance = Balance(confirmed: 5_000_000_000)
 
         let useCase = MockSendBitcoinUseCase()
@@ -196,6 +264,10 @@ private final class MockSendBitcoinUseCase: SendBitcoinUseCaseProtocol {
 private final class MockWalletRepository: WalletRepositoryProtocol {
     var wallets: [Wallet] = []
     var balance: Balance = Balance()
+    var activeWallet: Wallet?
+    var addressesByWallet: [UUID: [String]] = [:]
+    var balanceByAddress: [String: Balance] = [:]
+    private(set) var resolveActiveWalletCalls = 0
 
     func createWallet(name: String, type: WalletType) async throws -> Wallet { fatalError("Not implemented") }
     func importWallet(mnemonic: String, name: String, type: WalletType) async throws -> Wallet { fatalError("Not implemented") }
@@ -204,6 +276,22 @@ private final class MockWalletRepository: WalletRepositoryProtocol {
     func getWallet(by id: UUID) async throws -> Wallet? { fatalError("Not implemented") }
     func updateWallet(_ wallet: Wallet) async throws { fatalError("Not implemented") }
     func deleteWallet(by id: UUID) async throws { fatalError("Not implemented") }
-    func getBalance(for address: String) async throws -> Balance { balance }
+    func getActiveWallet() -> Wallet? {
+        resolveActiveWalletCalls += 1
+        return activeWallet
+    }
+    func getBalance(for address: String) async throws -> Balance {
+        if let specific = balanceByAddress[address] { return specific }
+        return balance
+    }
     func getTransactions(for address: String) async throws -> [Transaction] { fatalError("Not implemented") }
+    func listAddresses(for walletId: UUID) -> [String] { addressesByWallet[walletId] ?? [] }
+}
+
+private struct MockPriceService: PriceServiceProtocol {
+    let price: PriceData
+
+    func fetchBTCPrice() async throws -> PriceData { price }
+    func fetchPriceHistory(days: Int) async throws -> [PricePoint] { [] }
+    func subscribeToPriceUpdates(completion: @escaping (PriceData) -> Void) {}
 }
