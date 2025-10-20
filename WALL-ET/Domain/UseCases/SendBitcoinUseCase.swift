@@ -39,8 +39,15 @@ final class SendBitcoinUseCase: SendBitcoinUseCaseProtocol {
         }
 
         // Check balance
-        let balance = try await walletRepository.getBalance(for: request.fromWallet.accounts.first?.address ?? "")
-        guard balance.confirmed >= request.amount else {
+        let accountAddresses = request.fromWallet.accounts.map { $0.address }
+        let repositoryAddresses = walletRepository.listAddresses(for: request.fromWallet.id)
+        let uniqueAddresses = Array(Set(accountAddresses + repositoryAddresses).filter { !$0.isEmpty })
+        let balances = try await walletRepository.getBalances(for: uniqueAddresses)
+        let confirmedTotal = uniqueAddresses.reduce(into: Int64(0)) { total, address in
+            total += balances[address]?.confirmed ?? 0
+        }
+
+        guard confirmedTotal >= request.amount else {
             throw WalletError.insufficientBalance
         }
 

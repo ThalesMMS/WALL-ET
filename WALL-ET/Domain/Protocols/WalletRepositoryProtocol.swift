@@ -10,5 +10,21 @@ protocol WalletRepositoryProtocol {
     func updateWallet(_ wallet: Wallet) async throws
     func deleteWallet(by id: UUID) async throws
     func getBalance(for address: String) async throws -> Balance
+    func getBalances(for addresses: [String]) async throws -> [String: Balance]
     func getTransactions(for address: String) async throws -> [Transaction]
+    func listAddresses(for walletId: UUID) -> [String]
+}
+
+extension WalletRepositoryProtocol {
+    func getBalances(for addresses: [String]) async throws -> [String: Balance] {
+        var results: [String: Balance] = [:]
+        for address in addresses {
+            results[address] = try await getBalance(for: address)
+        }
+        return results
+    }
+
+    func listAddresses(for walletId: UUID) -> [String] {
+        []
+    }
 }
