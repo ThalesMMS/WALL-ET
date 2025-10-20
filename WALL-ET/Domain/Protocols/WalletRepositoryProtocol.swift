@@ -9,6 +9,7 @@ protocol WalletRepositoryProtocol {
     func getWallet(by id: UUID) async throws -> Wallet?
     func updateWallet(_ wallet: Wallet) async throws
     func deleteWallet(by id: UUID) async throws
+    func getActiveWallet() -> Wallet?
     func getBalance(for address: String) async throws -> Balance
     func getBalances(for addresses: [String]) async throws -> [String: Balance]
     func getTransactions(for address: String) async throws -> [Transaction]
@@ -16,6 +17,8 @@ protocol WalletRepositoryProtocol {
 }
 
 extension WalletRepositoryProtocol {
+    func getActiveWallet() -> Wallet? { nil }
+
     func getBalances(for addresses: [String]) async throws -> [String: Balance] {
         var results: [String: Balance] = [:]
         for address in addresses {

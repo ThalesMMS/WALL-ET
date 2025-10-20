@@ -338,14 +338,22 @@ final class SendViewModel: ObservableObject {
 
     private func loadBalance() async {
         do {
-            if let wallet = try await walletRepository.getAllWallets().first,
-               let address = wallet.accounts.first?.address {
-                activeWallet = wallet
-                let balance = try await walletRepository.getBalance(for: address)
-                availableBalance = balance.btcValue
-            } else {
-                availableBalance = 0
+            let wallet = try await resolveActiveWallet()
+            let addresses = walletRepository.listAddresses(for: wallet.id)
+            let uniqueAddresses = Array(Set(addresses.filter { !$0.isEmpty }))
+
+            if uniqueAddresses.isEmpty {
+                let cachedTotal = wallet.accounts.reduce(0.0) { $0 + $1.balance.btcValue }
+                availableBalance = cachedTotal
+                return
             }
+
+            let balances = try await walletRepository.getBalances(for: uniqueAddresses)
+            let totalSatoshis = balances.values.reduce(Int64(0)) { partial, balance in
+                partial + balance.total
+            }
+
+            availableBalance = Double(totalSatoshis).satoshisToBitcoin()
         } catch {
             availableBalance = 0
         }
@@ -445,6 +453,13 @@ final class SendViewModel: ObservableObject {
     }
 
     private func resolveActiveWallet() async throws -> Wallet {
+        if let wallet = walletRepository.getActiveWallet() {
+            if wallet.id != activeWallet?.id {
+                activeWallet = wallet
+            }
+            return wallet
+        }
+
         if let activeWallet {
             return activeWallet
         }

@@ -46,6 +46,8 @@ private final class WalletRepositoryDummy: WalletRepositoryProtocol {
     func getWallet(by id: UUID) async throws -> Wallet? { fatalError("Not implemented") }
     func updateWallet(_ wallet: Wallet) async throws { fatalError("Not implemented") }
     func deleteWallet(by id: UUID) async throws { fatalError("Not implemented") }
+    func getActiveWallet() -> Wallet? { nil }
     func getBalance(for address: String) async throws -> Balance { fatalError("Not implemented") }
     func getTransactions(for address: String) async throws -> [Transaction] { fatalError("Not implemented") }
+    func listAddresses(for walletId: UUID) -> [String] { [] }
 }
