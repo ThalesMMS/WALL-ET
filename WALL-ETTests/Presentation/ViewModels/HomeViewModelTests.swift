@@ -68,6 +68,64 @@ final class HomeViewModelTests: XCTestCase {
             [HomeViewModel.PriceHistoryRange.week.days, HomeViewModel.PriceHistoryRange.week.days]
         )
     }
+
+    func testRefreshDataCalculatesBalancesFromWalletService() async {
+        let walletService = MockWalletService()
+        let cachedWallet = WalletModel(
+            id: UUID(),
+            name: "Primary",
+            address: "tb1qcachable",
+            confirmedBalance: 0,
+            unconfirmedBalance: 0,
+            isTestnet: true,
+            derivationPath: "m/84'/1'/0'",
+            createdAt: Date()
+        )
+        let refreshedWallet = WalletModel(
+            id: cachedWallet.id,
+            name: cachedWallet.name,
+            address: cachedWallet.address,
+            confirmedBalance: 0.4,
+            unconfirmedBalance: 0.1,
+            isTestnet: true,
+            derivationPath: "m/84'/1'/0'",
+            createdAt: cachedWallet.createdAt,
+            lastBalanceUpdate: Date()
+        )
+        walletService.storedWallets = [cachedWallet]
+        walletService.refreshResult = [refreshedWallet]
+
+        let priceService = MockPriceService()
+        priceService.priceDataToReturn = PriceData(
+            price: 20_000,
+            change24h: 0,
+            changePercentage24h: 0,
+            volume24h: 0,
+            marketCap: 0,
+            currency: "USD",
+            timestamp: Date()
+        )
+
+        let suiteName = UUID().uuidString
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let viewModel = HomeViewModel(
+            walletService: walletService,
+            priceService: priceService,
+            transactionService: MockTransactionService(),
+            userDefaults: userDefaults,
+            shouldLoadOnInit: false
+        )
+
+        await viewModel.refreshData()
+
+        XCTAssertEqual(viewModel.wallets.count, 1)
+        XCTAssertEqual(viewModel.wallets.first?.balance, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(viewModel.totalBalanceBTC, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(viewModel.totalBalanceUSD, 10_000, accuracy: 0.01)
+        XCTAssertEqual(viewModel.wallets.first?.lastBalanceUpdate?.timeIntervalSince1970 ?? 0, refreshedWallet.lastBalanceUpdate?.timeIntervalSince1970 ?? 0, accuracy: 1)
+    }
 }
 
 // MARK: - Mocks
@@ -76,17 +134,18 @@ private final class MockPriceService: PriceServiceProtocol {
     var historyToReturn: [PricePoint] = []
     var shouldThrow = false
     var requestedDays: [Int] = []
+    var priceDataToReturn = PriceData(
+        price: 0,
+        change24h: 0,
+        changePercentage24h: 0,
+        volume24h: 0,
+        marketCap: 0,
+        currency: "USD",
+        timestamp: Date()
+    )
 
     func fetchBTCPrice() async throws -> PriceData {
-        PriceData(
-            price: 0,
-            change24h: 0,
-            changePercentage24h: 0,
-            volume24h: 0,
-            marketCap: 0,
-            currency: "USD",
-            timestamp: Date()
-        )
+        priceDataToReturn
     }
 
     func fetchPriceHistory(days: Int) async throws -> [PricePoint] {
@@ -102,8 +161,12 @@ private final class MockPriceService: PriceServiceProtocol {
 
 private final class MockWalletService: WalletServiceProtocol {
     var storedWallets: [WalletModel] = []
+    var refreshResult: [WalletModel]?
 
     func fetchWallets() async throws -> [WalletModel] { storedWallets }
+    func refreshWalletBalances() async throws -> [WalletModel] {
+        refreshResult ?? storedWallets
+    }
     func createWallet(name: String, type: WalletType) async throws -> WalletModel {
         throw NSError(domain: "MockWalletService", code: -1)
     }

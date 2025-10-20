@@ -3,6 +3,7 @@ import Foundation
 // MARK: - Wallet Service Protocol
 protocol WalletServiceProtocol {
     func fetchWallets() async throws -> [WalletModel]
+    func refreshWalletBalances() async throws -> [WalletModel]
     func createWallet(name: String, type: WalletType) async throws -> WalletModel
     func importWallet(seedPhrase: String, name: String, type: WalletType) async throws -> WalletModel
     func deleteWallet(_ walletId: UUID) async throws

@@ -99,10 +99,15 @@ private final class WalletRepositoryStub: WalletDataRepository {
     func deleteWallet(by id: UUID) async throws {}
     func getWallet(by id: UUID) async throws -> Wallet? { storedWallet?.id == id ? storedWallet : nil }
     func listAllAddresses() -> [String] { [] }
+    func listAddresses(for walletId: UUID) -> [String] {
+        guard let wallet = storedWallet, wallet.id == walletId else { return [] }
+        return wallet.accounts.map { $0.address }
+    }
     func getActiveWallet() -> Wallet? { nil }
     func setActiveWallet(id: UUID) {}
     func ensureGapLimit(for walletId: UUID, gap: Int) async {}
     func getNextReceiveAddress(for walletId: UUID, gap: Int) async -> String? { nil }
+    func updateAddressBalances(for walletId: UUID, balances: [String: Balance]) {}
 }
 
 private final class KeychainServiceStub: KeychainServiceProtocol {

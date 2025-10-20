@@ -24,6 +24,21 @@ extension DefaultWalletRepository {
         return entities.flatMap { entity in persistence.getAddresses(for: entity).compactMap { $0.address } }
     }
 
+    func updateAddressBalances(for walletId: UUID, balances: [String: Balance]) {
+        guard !balances.isEmpty else { return }
+        let wallets = persistence.getAllWallets()
+        guard let entity = wallets.first(where: { ($0.id ?? UUID()) == walletId }) else { return }
+        let addressEntities = persistence.getAddresses(for: entity)
+        for addressEntity in addressEntities {
+            guard let address = addressEntity.address, let balance = balances[address] else { continue }
+            persistence.updateAddressBalance(
+                addressEntity,
+                balance: balance.confirmed,
+                unconfirmedBalance: balance.unconfirmed
+            )
+        }
+    }
+
     // MARK: - Gap limit scanning
     func ensureGapLimit(for walletId: UUID, gap: Int = 20) async {
         let wallets = persistence.getAllWallets()

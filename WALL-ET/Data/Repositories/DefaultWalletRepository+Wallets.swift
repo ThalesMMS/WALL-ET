@@ -138,7 +138,16 @@ extension DefaultWalletRepository {
 
         let accounts = addresses.compactMap { addressEntity -> Account? in
             guard let address = addressEntity.address else { return nil }
-            return Account(index: Int(addressEntity.derivationIndex), address: address, publicKey: "")
+            let balance = Balance(
+                confirmed: addressEntity.balance,
+                unconfirmed: addressEntity.unconfirmedBalance
+            )
+            return Account(
+                index: Int(addressEntity.derivationIndex),
+                address: address,
+                publicKey: "",
+                balance: balance
+            )
         }
 
         let type: WalletType = (entity.network == "mainnet") ? .bitcoin : .testnet

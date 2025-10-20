@@ -7,10 +7,12 @@ protocol WalletDataRepository: AnyObject {
     func deleteWallet(by id: UUID) async throws
     func getWallet(by id: UUID) async throws -> Wallet?
     func listAllAddresses() -> [String]
+    func listAddresses(for walletId: UUID) -> [String]
     func getActiveWallet() -> Wallet?
     func setActiveWallet(id: UUID)
     func ensureGapLimit(for walletId: UUID, gap: Int) async
     func getNextReceiveAddress(for walletId: UUID, gap: Int) async -> String?
+    func updateAddressBalances(for walletId: UUID, balances: [String: Balance])
 }
 
 extension DefaultWalletRepository: WalletDataRepository {
@@ -65,6 +67,12 @@ struct WalletExportPayload: Codable, Equatable {
 final class WalletService: WalletServiceProtocol {
     private let repo: WalletDataRepository
     private let keychain: KeychainServiceProtocol
+    private struct CachedWalletBalance {
+        var confirmed: Int64
+        var unconfirmed: Int64
+        var updatedAt: Date?
+    }
+    private var balanceCache: [UUID: CachedWalletBalance] = [:]
 
     init(repository: WalletDataRepository? = nil, keychainService: KeychainServiceProtocol? = nil) {
         let keychain = keychainService ?? KeychainService()
@@ -78,46 +86,74 @@ final class WalletService: WalletServiceProtocol {
 
     func fetchWallets() async throws -> [WalletModel] {
         let wallets = try await repo.fetchWallets()
-        return wallets.map { w in
-            let address = w.accounts.first?.address ?? ""
-            return WalletModel(
-                id: w.id,
-                name: w.name,
-                address: address,
-                balance: 0,
-                isTestnet: (w.type == .testnet),
-                derivationPath: (w.type == .testnet ? "m/84'/1'/0'" : "m/84'/0'/0'"),
-                createdAt: w.createdAt
+        return mapWallets(wallets)
+    }
+
+    func refreshWalletBalances() async throws -> [WalletModel] {
+        let wallets = try await repo.fetchWallets()
+        guard !wallets.isEmpty else { return [] }
+
+        struct WalletBalanceComputation {
+            let walletId: UUID
+            let balances: [String: Balance]
+        }
+
+        var computations: [WalletBalanceComputation] = []
+        var pendingRequests: [(UUID, [String])] = []
+
+        for wallet in wallets {
+            let uniqueAddresses = Array(Set(repo.listAddresses(for: wallet.id).filter { !$0.isEmpty }))
+            if uniqueAddresses.isEmpty {
+                computations.append(WalletBalanceComputation(walletId: wallet.id, balances: [:]))
+            } else {
+                pendingRequests.append((wallet.id, uniqueAddresses))
+            }
+        }
+
+        try await withThrowingTaskGroup(of: WalletBalanceComputation.self) { group in
+            for (walletId, addresses) in pendingRequests {
+                group.addTask {
+                    let balances = try await Self.fetchBalances(for: addresses)
+                    return WalletBalanceComputation(walletId: walletId, balances: balances)
+                }
+            }
+
+            for try await computation in group {
+                computations.append(computation)
+            }
+        }
+
+        for computation in computations {
+            if !computation.balances.isEmpty {
+                repo.updateAddressBalances(for: computation.walletId, balances: computation.balances)
+            }
+            let totals = computation.balances.values.reduce((confirmed: Int64(0), unconfirmed: Int64(0))) { partial, balance in
+                (partial.confirmed + balance.confirmed, partial.unconfirmed + balance.unconfirmed)
+            }
+            updateCache(
+                for: computation.walletId,
+                confirmed: totals.confirmed,
+                unconfirmed: totals.unconfirmed,
+                updatedAt: Date()
             )
         }
+
+        let refreshedWallets = try await repo.fetchWallets()
+        let models = mapWallets(refreshedWallets)
+        if !computations.isEmpty {
+            NotificationCenter.default.post(name: .walletUpdated, object: nil)
+        }
+        return models
     }
 
     func createWallet(name: String, type: WalletType) async throws -> WalletModel {
-        let w = try await repo.createWallet(name: name, type: type)
-        let address = w.accounts.first?.address ?? ""
-        return WalletModel(
-            id: w.id,
-            name: w.name,
-            address: address,
-            balance: 0,
-            isTestnet: (w.type == .testnet),
-            derivationPath: (w.type == .testnet ? "m/84'/1'/0'" : "m/84'/0'/0'"),
-            createdAt: w.createdAt
-        )
+        let wallet = try await repo.createWallet(name: name, type: type)
+        return mapWallet(wallet)
     }
 
     func importWallet(seedPhrase: String, name: String, type: WalletType) async throws -> WalletModel {
-        let w = try await repo.importWallet(mnemonic: seedPhrase, name: name, type: type)
-        let address = w.accounts.first?.address ?? ""
-        return WalletModel(
-            id: w.id,
-            name: w.name,
-            address: address,
-            balance: 0,
-            isTestnet: (w.type == .testnet),
-            derivationPath: (w.type == .testnet ? "m/84'/1'/0'" : "m/84'/0'/0'"),
-            createdAt: w.createdAt
-        )
+        let wallet = try await repo.importWallet(mnemonic: seedPhrase, name: name, type: type)
+        return mapWallet(wallet)
     }
 
     func deleteWallet(_ walletId: UUID) async throws { try await repo.deleteWallet(by: walletId) }
@@ -147,17 +183,8 @@ final class WalletService: WalletServiceProtocol {
     }
 
     func getWalletDetails(_ walletId: UUID) async throws -> WalletModel {
-        guard let w = try await repo.getWallet(by: walletId) else { throw NSError(domain: "WalletService", code: -1) }
-        let address = w.accounts.first?.address ?? ""
-        return WalletModel(
-            id: w.id,
-            name: w.name,
-            address: address,
-            balance: 0,
-            isTestnet: (w.type == .testnet),
-            derivationPath: (w.type == .testnet ? "m/84'/1'/0'" : "m/84'/0'/0'"),
-            createdAt: w.createdAt
-        )
+        guard let wallet = try await repo.getWallet(by: walletId) else { throw NSError(domain: "WalletService", code: -1) }
+        return mapWallet(wallet)
     }
 
     func updateWallet(_ wallet: WalletModel) async throws { /* Not needed for now */ }
@@ -219,19 +246,81 @@ final class WalletService: WalletServiceProtocol {
         return json
     }
 
+    private func mapWallets(_ wallets: [Wallet]) -> [WalletModel] {
+        wallets.map { mapWallet($0) }
+    }
+
+    private func mapWallet(_ wallet: Wallet) -> WalletModel {
+        let totals = aggregatedBalance(for: wallet)
+        updateCache(for: wallet.id, confirmed: totals.confirmed, unconfirmed: totals.unconfirmed)
+        let confirmedBTC = Double(totals.confirmed).satoshisToBitcoin()
+        let unconfirmedBTC = Double(totals.unconfirmed).satoshisToBitcoin()
+        let primaryAddress = wallet.accounts.sorted { $0.index < $1.index }.first?.address ?? ""
+        let isTestnet = wallet.type == .testnet
+        let derivation = isTestnet ? "m/84'/1'/0'" : "m/84'/0'/0'"
+        let lastUpdated = balanceCache[wallet.id]?.updatedAt
+
+        return WalletModel(
+            id: wallet.id,
+            name: wallet.name,
+            address: primaryAddress,
+            confirmedBalance: confirmedBTC,
+            unconfirmedBalance: unconfirmedBTC,
+            isTestnet: isTestnet,
+            derivationPath: derivation,
+            createdAt: wallet.createdAt,
+            lastBalanceUpdate: lastUpdated
+        )
+    }
+
+    private func aggregatedBalance(for wallet: Wallet) -> (confirmed: Int64, unconfirmed: Int64) {
+        wallet.accounts.reduce((confirmed: Int64(0), unconfirmed: Int64(0))) { partial, account in
+            (
+                partial.confirmed + account.balance.confirmed,
+                partial.unconfirmed + account.balance.unconfirmed
+            )
+        }
+    }
+
+    private func updateCache(for walletId: UUID, confirmed: Int64, unconfirmed: Int64, updatedAt: Date? = nil) {
+        var cached = balanceCache[walletId] ?? CachedWalletBalance(confirmed: 0, unconfirmed: 0, updatedAt: nil)
+        cached.confirmed = confirmed
+        cached.unconfirmed = unconfirmed
+        if let updatedAt { cached.updatedAt = updatedAt }
+        balanceCache[walletId] = cached
+    }
+
+    private nonisolated static func fetchBalances(for addresses: [String]) async throws -> [String: Balance] {
+        guard !addresses.isEmpty else { return [:] }
+        return try await withThrowingTaskGroup(of: (String, Balance).self, returning: [String: Balance].self) { group in
+            for address in addresses {
+                group.addTask {
+                    try await withCheckedThrowingContinuation { continuation in
+                        ElectrumService.shared.getBalance(for: address) { result in
+                            switch result {
+                            case .success(let balance):
+                                let mapped = Balance(confirmed: balance.confirmed, unconfirmed: balance.unconfirmed)
+                                continuation.resume(returning: (address, mapped))
+                            case .failure(let error):
+                                continuation.resume(throwing: error)
+                            }
+                        }
+                    }
+                }
+            }
+
+            var results: [String: Balance] = [:]
+            for try await (address, balance) in group {
+                results[address] = balance
+            }
+            return results
+        }
+    }
+
     // MARK: - Active wallet helpers
     func getActiveWallet() async -> WalletModel? {
         if let w = repo.getActiveWallet() {
-            let address = w.accounts.first?.address ?? ""
-            return WalletModel(
-                id: w.id,
-                name: w.name,
-                address: address,
-                balance: 0,
-                isTestnet: (w.type == .testnet),
-                derivationPath: (w.type == .testnet ? "m/84'/1'/0'" : "m/84'/0'/0'"),
-                createdAt: w.createdAt
-            )
+            return mapWallet(w)
         }
         return nil
     }

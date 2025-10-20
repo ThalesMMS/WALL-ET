@@ -62,13 +62,15 @@ private final class WalletServiceStub: WalletServiceProtocol {
             id: walletId,
             name: "Test",
             address: "",
-            balance: 0,
+            confirmedBalance: 0,
+            unconfirmedBalance: 0,
             isTestnet: true,
             derivationPath: "m/84'/1'/0'",
             createdAt: Date()
         )
     }
     func updateWallet(_ wallet: WalletModel) async throws {}
+    func refreshWalletBalances() async throws -> [WalletModel] { [] }
 
     func exportWallet(_ walletId: UUID) async throws -> String {
         lastExportedId = walletId
