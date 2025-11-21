@@ -37,3 +37,7 @@
 *.xcarchive binary
 *.ipa binary
 *.dSYM binary
+
+WALL-ETTests/** linguist-vendored
+WALL-ETTestsSPM/** linguist-vendored
+WALL-ETUITests/** linguist-vendored
