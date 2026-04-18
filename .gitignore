@@ -45,3 +45,4 @@ playground.xcworkspace
 *.tmp
 *.orig
 .DS_Store
+build.log

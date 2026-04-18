@@ -14,7 +14,7 @@ struct TransactionsView: View {
             List {
                 Section { filterBar }
 
-                // Sempre renderiza a lista de transações quando houver dados
+                // Always render the transaction list when data is available
                 ForEach(txvm.groupedTransactions(), id: \.0) { section in
                     Section(section.0) {
                         ForEach(section.1, id: \.id) { model in
@@ -29,7 +29,7 @@ struct TransactionsView: View {
                     Section { ProgressView("Loading…") }
                 }
 
-                // Empty state guiado pelos dados
+                // Empty state driven by the available data
                 if !txvm.isLoading && txvm.filteredTransactions.isEmpty {
                     Section {
                         VStack(spacing: 16) {
@@ -57,9 +57,9 @@ struct TransactionsView: View {
             .navigationTitle("Transactions")
             .searchable(text: $txvm.searchText, prompt: "Search transactions")
             .onAppear {
-                // manter o carregamento de wallets (para exibir CTAs)
+                // Keep loading wallets so the CTAs can be shown
                 loadWallets()
-                // atualização rápida ao entrar
+                // Quick refresh on entry
                 if txvm.transactions.isEmpty { txvm.refresh() }
             }
             .sheet(isPresented: $showCreateSheet, onDismiss: { loadWallets() }) { CreateWalletView() }

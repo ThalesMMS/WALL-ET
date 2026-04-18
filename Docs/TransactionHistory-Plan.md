@@ -166,19 +166,19 @@ We can consult Unstoppable’s source in this repo at any time to mirror behavio
   - Pending: Comprehensive witness parsing (not required for history), additional script types.
 - [x] Add TransactionsAdapterProtocol — created `Domain/Protocols/TransactionsAdapterProtocol.swift` (Combine-based).
 - [x] Build ElectrumTransactionsAdapter (index, pagination, updates)
-  - Implementado índice txid→altura com merge por endereços; paginação por cursor (altura, txid); montagem de TransactionModel via decoder + prevouts; confirmações e timestamp por header; persistência do índice em cache.
+  - Implemented a txid→height index with address-merged results, cursor pagination (height, txid), TransactionModel assembly via decoder + prevouts, confirmations and timestamp via header data, and cached index persistence.
 - [x] Introduce minimal Pool stack (Provider/Pool/Group)
-  - Adicionados: `Core/TransactionsPool/{PoolProvider,Pool,PoolGroup}.swift` (Combine).
+  - Added: `Core/TransactionsPool/{PoolProvider,Pool,PoolGroup}.swift` (Combine).
 - [x] Wire TransactionsViewModel to PoolGroup (+ feature flag)
-  - Feature flag `useNewTxPipeline` (UserDefaults). Quando ativo, a VM usa PoolGroup para paginação por count cumulativo.
+  - Feature flag `useNewTxPipeline` (UserDefaults). When enabled, the view model uses PoolGroup for cumulative-count pagination.
 - [ ] Add live updates from block height + address status
 - [x] Core Data persistence for tx metadata
   - `Core/Persistence/Repositories/TransactionMetadataRepository.swift` grava/atualiza TransactionEntity (txid, amount, fee, blockHeight, timestamp, type, status, from/to).
 - [x] Perf pass: caching
   - LRU decode cache (512)
-  - Header timestamp cache + persistência em Caches (JSON)
-  - Intra‑block ordering via `get_merkle.pos` com cache e persistência (JSON)
-  - Batch limits/backoff: throttling para history/pos/decodes (6 conc.) e retry exponencial (3 tentativas)
+  - Header timestamp cache + persistence in Caches (JSON)
+  - Intra-block ordering via `get_merkle.pos` with cache and persistence (JSON)
+  - Batch limits/backoff: throttling for history/pos/decodes (6 concurrent) and exponential retry (3 attempts)
 - [ ] Remove legacy service path after parity
 
 ### Progress Notes
@@ -189,10 +189,10 @@ We can consult Unstoppable’s source in this repo at any time to mirror behavio
     - New cache for decoded parents to avoid repeated decoding.
     - Fee computed as sum(inputs) - sum(outputs).
     - Confirmations computed using known block heights from address histories + current tip height.
-  - Limitations atuais:
-    - Cursor usa (altura, txid) mas índice intra‑bloco ainda usa txid como tie‑breaker; evoluir para (height, intraBlockIndex) se necessário.
-    - PoolGroup assume único provider; merge multi‑providers pode ser adicionado depois.
-    - Retries/backoff e limites de concorrência em lotes ainda não ajustados.
+  - Current limitations:
+    - The cursor uses (height, txid), but the intra-block index still uses txid as the tie-breaker. Evolve it to (height, intraBlockIndex) if needed.
+    - PoolGroup assumes a single provider. Multi-provider merging can be added later.
+    - Batch retries/backoff and concurrency limits are not fully tuned yet.
 
 ### Toggle & Defaults
 
